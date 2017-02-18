@@ -71,6 +71,12 @@ editor::editor() {
 void editor::show() {
 	Text.puttext(1, 2, &content);
 }
+void editor::cursor() {
+	static int t = 0;
+	t = (t + 1) % 400;
+	if (t / 200)Text.setbgcolor(WHITE, cursorPos.x+1, cursorPos.y+2);
+	else Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+}
 void editor::operate(int bioK) {
 	if (bioK >= 0x20 && bioK < 0x80) {
 		content.content[cursorPos.y*width + cursorPos.x] &= 0xFF00;
@@ -79,12 +85,67 @@ void editor::operate(int bioK) {
 		cursorPos.y += (cursorPos.x ? 0 : 1);
 		show();
 	}
+	if (bioK == SG_TAB) {
+		cursorPos.x = (cursorPos.x + 4) % width;
+		cursorPos.y += ((cursorPos.x < 4) ? 1 : 0);
+	}
 	if (bioK == SG_BACKS) {
+		if (cursorPos.x != 0 || cursorPos.y != 0)cursorPos.x = (cursorPos.x + 77) % width;
+		if (cursorPos.x == width - 1)cursorPos.y -= 1;
 		content.content[cursorPos.y*width + cursorPos.x] &= 0xFF00;
 		content.content[cursorPos.y*width + cursorPos.x] |= 0;
-		cursorPos.x = (!cursorPos.x && !cursorPos.y) ? cursorPos.x : (cursorPos.x - 1) % width;
-		cursorPos.y -= (cursorPos.x||!cursorPos.y ? 0 : 1);
 		show();
+	}
+	if (bioK == SG_ENTER) {
+		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		if (cursorPos.y == height - 1) {
+			for (int i = 1; i < height; i--) {
+				memcpy(content.content + (i - 1)*width, content.content + i*width, width * sizeof(short));
+			}
+			for (int i = 0; i < width; i++) {
+				content.content[(cursorPos.y - 1)*width + i] &= 0xFF00;
+				content.content[(cursorPos.y - 1)*width + i] |= ' ';
+			}
+			memcpy(content.content + (height - 1)*width, content.content + (height - 2)*width + cursorPos.x, (width - cursorPos.x) * sizeof(short));
+			for (int i = cursorPos.x; i < width; i++) {
+				content.content[(cursorPos.y-1)*width + i] &= 0xFF00;
+				content.content[(cursorPos.y-1)*width + i] |= ' ';
+			}
+			cursorPos.x = 0;
+		}
+		else {
+			for (int i = height - 2; i > cursorPos.y; i--) {
+				memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
+			}
+			for (int i = 0; i < width; i++) {
+				content.content[cursorPos.y*width + i] &= 0xFF00;
+				content.content[cursorPos.y*width + i] |= ' ';
+			}
+			//memcpy(content.content + cursorPos.y*width, content.content + (cursorPos.y - 1)*width + cursorPos.x, (width - cursorPos.x) * sizeof(short));
+			for (int i = cursorPos.x; i < width; i++) {
+				content.content[(cursorPos.y - 1)*width + i] &= 0xFF00;
+				content.content[(cursorPos.y - 1)*width + i] |= ' ';
+			}
+			cursorPos.y++;
+			cursorPos.x = 0;
+		}
+		show();
+	}
+	if (bioK == SG_UP) {
+		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		cursorPos.y -= (cursorPos.y ? 1 : 0);
+	}
+	if (bioK == SG_DOWN) {
+		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		cursorPos.y += ((height - cursorPos.y - 1) ? 1 : 0);
+	}
+	if (bioK == SG_LEFT) {
+		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		cursorPos.x -= (cursorPos.x ? 1 : 0);
+	}
+	if (bioK == SG_RIGHT) {
+		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		cursorPos.x += ((width - cursorPos.x - 1) ? 1 : 0);
 	}
 }
 void editor::operate(vecThree bioM) {
@@ -115,6 +176,7 @@ void frame::loop() {
 	Mouse.update();
 	vecThree click = { -1, -1, -1 };
 	int key = 0;
+	Editor.cursor();
 	if (biosMouse(1).m)click = biosMouse(0);
 	if (biosKey(1))key = biosKey(0);
 	switch (key) {

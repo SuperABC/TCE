@@ -111,6 +111,7 @@ private:
 	void gotoxy(int x, int y);
 public:
 	editor();
+	void cursor();
 	void operate(vecThree bioM);
 	void operate(int bioK);
 };
