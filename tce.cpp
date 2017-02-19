@@ -71,6 +71,21 @@ editor::editor() {
 void editor::show() {
 	Text.puttext(1, 2, &content);
 }
+void editor::check() {
+	int j;
+	for (int i = 0; i < height; i++) {
+		for (j = width; j > 0; j--) {
+			if (char(content.content[i*width + j - 1]))break;
+		}
+		endL[i] = j;
+	}
+	for (int i = 0; i < height; i++) {
+		for (j = 0; j < width; j++) {
+			if (char(content.content[i*width + j]) != ' ')break;
+		}
+		tabS[i] = j;
+	}
+}
 void editor::cursor() {
 	static int t = 0;
 	t = (t + 1) % 400;
@@ -78,22 +93,160 @@ void editor::cursor() {
 	else Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 }
 void editor::operate(int bioK) {
+	static int endMax = 0;
 	if (bioK >= 0x20 && bioK < 0x80) {
+		static bool complete = false;
+		char out = (endL[cursorPos.y] == width) ? content.content[cursorPos.y*width + width - 1] : 0;
+		if ((endL[cursorPos.y] == width - 1) && (cursorPos.y < height - 1)) {
+			for (int i = height - 2; i > cursorPos.y; i--) {
+				memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
+			}
+			for (int i = 0; i < width; i++) {
+				content.content[(cursorPos.y + 1)*width + i] &= 0xFF00;
+			}
+		}
+		if ((endL[cursorPos.y] == width) && (cursorPos.y < height - 1)) {
+			vecTwo tmp = cursorPos;
+			cursorPos.x = 0;
+			cursorPos.y++;
+			operate(out);
+			cursorPos = tmp;
+		}
+		for (int i = width - 1; i > cursorPos.x; i--) {
+			content.content[cursorPos.y*width + i] = content.content[cursorPos.y*width + i - 1];
+		}
 		content.content[cursorPos.y*width + cursorPos.x] &= 0xFF00;
 		content.content[cursorPos.y*width + cursorPos.x] |= bioK;
 		cursorPos.x = (cursorPos.x + 1) % width;
 		cursorPos.y += (cursorPos.x ? 0 : 1);
+
+		if (bioK == '(') { operate(')'); operate(SG_LEFT); complete = true; }
+		if (bioK == '[') { operate(']'); operate(SG_LEFT); complete = true; }
+		if (bioK == '{') { operate('}'); operate(SG_LEFT); complete = true; }
+		if (bioK == ')'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
+		if (bioK == ']'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
+		if (bioK == '}'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
+		if (bioK >= 'a'&&bioK <= 'z') {
+			char *cc = (char *)malloc(12);
+			int ccn = 0;
+			vecTwo tmp = cursorPos;
+			if (tmp.x == 0 && tmp.y == 0);
+			else if (tmp.x == 0) {
+				tmp.x = width - 1;
+				tmp.y--;
+			}
+			else tmp.x--;
+			while (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z') {
+				if (tmp.x == 0 && tmp.y == 0);
+				else if (tmp.x == 0) {
+					tmp.x = width - 1;
+					tmp.y--;
+				}
+				else tmp.x--;
+			}
+			if (tmp.y != height - 1 && ++tmp.x == width) {
+				tmp.x = 0;
+				tmp.y++;
+			}
+			while (tmp.x!=cursorPos.x||tmp.y!=cursorPos.y) {
+				cc[ccn++] = char(content.content[tmp.y*width + tmp.x]);
+				if (tmp.y != height - 1 && ++tmp.x == width) {
+					tmp.x = 0;
+					tmp.y++;
+				}
+			}
+			cc[ccn] = '\0';
+			for (int i = 0; i < 100; i++) {
+				if (keyWord[0][i] != NULL && strcmp(keyWord[0][i], cc) == 0) {
+					if (tmp.x == 0 && tmp.y == 0);
+					else if (tmp.x == 0) {
+						tmp.x = width - 1;
+						tmp.y--;
+					}
+					else tmp.x--;
+					while (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z') {
+						content.content[tmp.y*width + tmp.x] &= 0xF0FF;
+						content.content[tmp.y*width + tmp.x] |= (LIGHTCYAN << 8);
+						if (tmp.x == 0 && tmp.y == 0);
+						else if (tmp.x == 0) {
+							tmp.x = width - 1;
+							tmp.y--;
+						}
+						else tmp.x--;
+					}
+					break;
+				}
+			}
+		}
+		check();
 		show();
 	}
 	if (bioK == SG_TAB) {
-		cursorPos.x = (cursorPos.x + 4) % width;
-		cursorPos.y += ((cursorPos.x < 4) ? 1 : 0);
+		operate(' ');
+		operate(' ');
+		operate(' ');
+		operate(' ');
 	}
 	if (bioK == SG_BACKS) {
-		if (cursorPos.x != 0 || cursorPos.y != 0)cursorPos.x = (cursorPos.x + 77) % width;
-		if (cursorPos.x == width - 1)cursorPos.y -= 1;
-		content.content[cursorPos.y*width + cursorPos.x] &= 0xFF00;
-		content.content[cursorPos.y*width + cursorPos.x] |= 0;
+		if (cursorPos.x == 0) {
+			if (cursorPos.y != 0) {
+				if (endL[cursorPos.y] + endL[cursorPos.y - 1] > width) {
+					if (endL[cursorPos.y - 1] == width) {
+						content.content[cursorPos.y*width - 1] = content.content[cursorPos.y*width];
+						for (int i = 1; i < width; i++) {
+							content.content[cursorPos.y*width + i - 1] = content.content[cursorPos.y*width + i];
+						}
+						content.content[(cursorPos.y + 1)*width - 1] &= 0xFF00;
+					}
+					else {
+						memcpy(content.content + (cursorPos.y - 1)*width + endL[cursorPos.y - 1], content.content + cursorPos.y*width, (width - endL[cursorPos.y - 1]) * sizeof(short));
+						memcpy(content.content + cursorPos.y*width, content.content + cursorPos.y*width + (width - endL[cursorPos.y - 1]), endL[cursorPos.y - 1] * sizeof(short));
+						for (int i = endL[cursorPos.y - 1]; i < width; i++) {
+							content.content[cursorPos.y*width + i] &= 0xFF00;
+						}
+					}
+					if ((endL[cursorPos.y] == width) && (cursorPos.y < height - 1)) {
+						endL[cursorPos.y] = endL[cursorPos.y - 1];
+						endL[cursorPos.y - 1] = width;
+						vecTwo tmp = cursorPos;
+						cursorPos.y++;
+						operate(SG_BACKS);
+						cursorPos = tmp;
+					}
+				}
+				else {
+					if (endL[cursorPos.y - 1] == width) {
+						content.content[cursorPos.y*width - 1] &= 0xFF00;
+					}
+					memcpy(content.content + (cursorPos.y - 1)*width + endL[cursorPos.y - 1], content.content + cursorPos.y*width, endL[cursorPos.y] * sizeof(short));
+					for (int i = cursorPos.y; i < height - 1; i++) {
+						memcpy(content.content + i*width, content.content + (i + 1)*width, width * sizeof(short));
+					}
+					for (int i = 0; i < width; i++) {
+						content.content[(height - 1)*width + i] &= 0xFF00;
+					}
+				}
+				cursorPos.x = endL[cursorPos.y - 1] < width ? endL[cursorPos.y - 1] : width - 1;;
+				cursorPos.y -= 1;
+			}
+		}
+		else {
+			if (endL[cursorPos.y] >= cursorPos.x) {
+				for (int i = cursorPos.x; i < width; i++) {
+					content.content[cursorPos.y*width + i - 1] = content.content[cursorPos.y*width + i];
+				}
+				content.content[(cursorPos.y + 1)*width - 1] &= 0xFF00;
+				if ((endL[cursorPos.y] == width)&&(cursorPos.y < height - 1)) {
+					vecTwo tmp = cursorPos;
+					cursorPos.x = 0;
+					cursorPos.y++;
+					operate(SG_BACKS);
+					cursorPos = tmp;
+				}
+			}
+			cursorPos.x--;
+		}
+		check();
 		show();
 	}
 	if (bioK == SG_ENTER) {
@@ -103,53 +256,106 @@ void editor::operate(int bioK) {
 				memcpy(content.content + (i - 1)*width, content.content + i*width, width * sizeof(short));
 			}
 			for (int i = 0; i < width; i++) {
-				content.content[(cursorPos.y - 1)*width + i] &= 0xFF00;
-				content.content[(cursorPos.y - 1)*width + i] |= ' ';
+				content.content[cursorPos.y*width + i] &= 0xFF00;
 			}
 			memcpy(content.content + (height - 1)*width, content.content + (height - 2)*width + cursorPos.x, (width - cursorPos.x) * sizeof(short));
 			for (int i = cursorPos.x; i < width; i++) {
 				content.content[(cursorPos.y-1)*width + i] &= 0xFF00;
-				content.content[(cursorPos.y-1)*width + i] |= ' ';
 			}
 			cursorPos.x = 0;
 		}
 		else {
-			for (int i = height - 2; i > cursorPos.y; i--) {
-				memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
+			if (endL[cursorPos.y] < width) {
+				for (int i = height - 2; i > cursorPos.y; i--) {
+					memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
+				}
+				for (int i = 0; i < width; i++) {
+					content.content[(cursorPos.y + 1)*width + i] &= 0xFF00;
+				}
+				memcpy(content.content + (cursorPos.y + 1)*width, content.content + cursorPos.y*width + cursorPos.x, (width - cursorPos.x) * sizeof(short));
+				for (int i = cursorPos.x; i < width; i++) {
+					content.content[cursorPos.y*width + i] &= 0xFF00;
+				}
 			}
-			for (int i = 0; i < width; i++) {
-				content.content[cursorPos.y*width + i] &= 0xFF00;
-				content.content[cursorPos.y*width + i] |= ' ';
+			else if (endL[cursorPos.y] == width && (endL[cursorPos.y + 1] + endL[cursorPos.y] - cursorPos.x < width)) {
+				memcpy(content.content + (cursorPos.y + 1)*width + (endL[cursorPos.y] - cursorPos.x), content.content + (cursorPos.y + 1)*width, endL[cursorPos.y + 1] * sizeof(short));
+				memcpy(content.content + (cursorPos.y + 1)*width, content.content + cursorPos.y*width + cursorPos.x, (endL[cursorPos.y] - cursorPos.x) * sizeof(short));
+				for (int i = cursorPos.x; i < width; i++) {
+					content.content[cursorPos.y*width + i] &= 0xFF00;
+				}
 			}
-			//memcpy(content.content + cursorPos.y*width, content.content + (cursorPos.y - 1)*width + cursorPos.x, (width - cursorPos.x) * sizeof(short));
-			for (int i = cursorPos.x; i < width; i++) {
-				content.content[(cursorPos.y - 1)*width + i] &= 0xFF00;
-				content.content[(cursorPos.y - 1)*width + i] |= ' ';
+			else {
+				if (cursorPos.y <= height - 2) {
+					if (cursorPos.y < height - 2) {
+						vecTwo tmp = cursorPos;
+						cursorPos.y++;
+						operate(SG_ENTER);
+						cursorPos = tmp;
+					}
+					memcpy(content.content + (cursorPos.y + 1)*width + (endL[cursorPos.y] - cursorPos.x), content.content + (cursorPos.y + 1)*width, endL[cursorPos.y + 1] * sizeof(short));
+					memcpy(content.content + (cursorPos.y + 1)*width, content.content + cursorPos.y*width + cursorPos.x, (endL[cursorPos.y] - cursorPos.x) * sizeof(short));
+					for (int i = cursorPos.x; i < width; i++) {
+						content.content[cursorPos.y*width + i] &= 0xFF00;
+					}
+				}
 			}
 			cursorPos.y++;
 			cursorPos.x = 0;
 		}
+		for (int i = 0; i < tabS[cursorPos.y - 1]; i++)operate(' ');
+		if (char(content.content[cursorPos.y*width + cursorPos.x]) == '}') {
+			cursorPos.y--;
+			cursorPos.x = endL[cursorPos.y];
+			operate(SG_ENTER);
+			operate(SG_TAB);
+		}
+		check();
 		show();
 	}
 	if (bioK == SG_UP) {
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		cursorPos.y -= (cursorPos.y ? 1 : 0);
+		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
+		else cursorPos.x = endMax;
 	}
 	if (bioK == SG_DOWN) {
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		cursorPos.y += ((height - cursorPos.y - 1) ? 1 : 0);
+		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
+		else cursorPos.x = endMax;
 	}
 	if (bioK == SG_LEFT) {
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
-		cursorPos.x -= (cursorPos.x ? 1 : 0);
+		if (cursorPos.x == 0) {
+			if (cursorPos.y != 0) {
+				cursorPos.y--;
+				cursorPos.x = endL[cursorPos.y];
+			}
+		}
+		else {
+			cursorPos.x--;
+		}
+		endMax = cursorPos.x;
 	}
 	if (bioK == SG_RIGHT) {
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
-		cursorPos.x += ((width - cursorPos.x - 1) ? 1 : 0);
+		if (cursorPos.x == endL[cursorPos.y]) {
+			cursorPos.y++;
+			cursorPos.x = 0;
+		}
+		else {
+			cursorPos.x++;
+		}
+		endMax = cursorPos.x;
 	}
 }
 void editor::operate(vecThree bioM) {
-
+	vecTwo tmp = Mouse.grid(bioM.x, bioM.y);
+	if (tmp.x<1 || tmp.x>width)return;
+	if (tmp.y<2 || tmp.y>height + 1)return;
+	Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+	cursorPos.y = tmp.y - 2;
+	cursorPos.x = tmp.x - 1 < endL[cursorPos.y] ? tmp.x - 1 : endL[cursorPos.y];
 }
 
 frame::frame() {

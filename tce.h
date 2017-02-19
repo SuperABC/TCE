@@ -2,24 +2,7 @@
 #include "screen.h"
 #define inRect(x, y, xx, yy, xxx, yyy) (((x)>=(xx)&&(x)<=(xxx))&&((y)>=(yy)&&(y)<=(yyy)))
 
-enum COLORS {
-	BLACK,       /* dark colors */
-	BLUE,
-	GREEN,
-	CYAN,
-	RED,
-	MAGENTA,
-	BROWN,
-	DARKGRAY,
-	LIGHTGRAY,    /* light colors */
-	LIGHTBLUE,
-	LIGHTGREEN,
-	LIGHTCYAN,
-	LIGHTRED,
-	LIGHTMAGENTA,
-	YELLOW,
-	WHITE
-};
+enum COLORS;
 struct textMap {
 	int width, height;
 	short *content;
@@ -104,11 +87,16 @@ private:
 	vecTwo cursorPos;
 	unsigned char *clipBoard;
 	const textMap content = {78, 22, (short*)malloc(78*22*sizeof(short))};
+	int endL[22] = { 0 };
+	int tabS[22] = { 0 };
+	enum LANGUAGE;
+	static char *keyWord[5][100];
 	void show();
 	void cut(vecTwo start, vecTwo end);
 	void copy(vecTwo start, vecTwo end);
 	void paste(vecTwo pos);
-	void gotoxy(int x, int y);
+	void match();
+	void check();
 public:
 	editor();
 	void cursor();
