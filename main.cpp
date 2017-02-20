@@ -9,7 +9,7 @@ editor Editor;
 file File;
 
 void sgSetup() {
-	LoadKeyboardLayout(widen("0x0409"), KLF_ACTIVATE | KLF_SETFORPROCESS);
+	//LoadKeyboardLayout(widen("0x0409"), KLF_ACTIVATE | KLF_SETFORPROCESS);
 	initWindow(640, 400, "TC Emulator");
 	initMouse(SG_COORDINATE);
 	initKey();

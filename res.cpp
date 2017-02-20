@@ -1,24 +1,5 @@
 #include "tce.h"
 
-enum COLORS {
-	BLACK,       /* dark colors */
-	BLUE,
-	GREEN,
-	CYAN,
-	RED,
-	MAGENTA,
-	BROWN,
-	DARKGRAY,
-	LIGHTGRAY,    /* light colors */
-	LIGHTBLUE,
-	LIGHTGREEN,
-	LIGHTCYAN,
-	LIGHTRED,
-	LIGHTMAGENTA,
-	YELLOW,
-	WHITE
-};
-
 enum editor::LANGUAGE {
 	CL_C,
 	CL_CPP,

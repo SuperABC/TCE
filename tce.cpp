@@ -71,14 +71,201 @@ editor::editor() {
 void editor::show() {
 	Text.puttext(1, 2, &content);
 }
+void editor::match() {
+	char *cc = (char *)malloc(MAX_KEYWORD_LEN);
+	int ccn = 0;
+	char tmpChar;
+	vecTwo tmp = cursorPos;
+
+	//后移一格
+	tmpChar = char(content.content[tmp.y*width + tmp.x]);
+	if (tmpChar < '0' || (tmpChar > '9'&&tmpChar < 'A') || (tmpChar > 'Z'&&tmpChar < 'a') || tmpChar>'z') {
+		if (tmp.x == 0 && tmp.y == 0)return;
+		else if (tmp.x == 0) {
+			tmp.x = width - 1;
+			tmp.y--;
+		}
+		else tmp.x--;
+	}
+
+	//匹配关键字
+	tmpChar = char(content.content[tmp.y*width + tmp.x]);
+	if ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z')) {
+		//向后匹配
+		while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z')) {
+			if (tmp.x == 0 && tmp.y == 0)break;
+			else if (tmp.x == 0) {
+				tmp.x = width - 1;
+				tmp.y--;
+			}
+			else tmp.x--;
+			tmpChar = char(content.content[tmp.y*width + tmp.x]);
+		}
+		//向前匹配
+		if (tmp.x == 0 && tmp.y == 0);
+		else if (tmp.y != height - 1 && ++tmp.x == width) {
+			tmp.x = 0;
+			tmp.y++;
+		}
+		tmpChar = char(content.content[tmp.y*width + tmp.x]);
+		while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z')) {
+			cc[ccn++] = tmpChar;
+			if (tmp.y != height - 1 && ++tmp.x == width) {
+				tmp.x = 0;
+				tmp.y++;
+			}
+			if (ccn >= MAX_KEYWORD_LEN)break;
+			tmpChar = char(content.content[tmp.y*width + tmp.x]);
+		}
+		cc[ccn] = '\0';
+		//关键字高亮显示
+		int i;
+		for (i = 0; i < 100; i++) {
+			if (keyWord[0][i] != NULL && strcmp(keyWord[0][i], cc) == 0) {
+				if (tmp.x == 0 && tmp.y == 0)break;
+				else if (tmp.x == 0) {
+					tmp.x = width - 1;
+					tmp.y--;
+				}
+				else tmp.x--;
+				tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z')) {
+					content.content[tmp.y*width + tmp.x] &= 0xF0FF;
+					content.content[tmp.y*width + tmp.x] |= (LIGHTCYAN << 8);
+					if (tmp.x == 0 && tmp.y == 0)break;
+					else if (tmp.x == 0) {
+						tmp.x = width - 1;
+						tmp.y--;
+					}
+					else tmp.x--;
+					tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				}
+				break;
+			}
+		}
+		if (i == 100) {
+			if (tmp.x == 0 && tmp.y == 0)return;
+			else if (tmp.x == 0) {
+				tmp.x = width - 1;
+				tmp.y--;
+			}
+			else tmp.x--;
+			tmpChar = char(content.content[tmp.y*width + tmp.x]);
+			while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z')) {
+				content.content[tmp.y*width + tmp.x] &= 0xF0FF;
+				content.content[tmp.y*width + tmp.x] |= (YELLOW << 8);
+				if (tmp.x == 0 && tmp.y == 0)break;
+				else if (tmp.x == 0) {
+					tmp.x = width - 1;
+					tmp.y--;
+				}
+				else tmp.x--;
+				tmpChar = char(content.content[tmp.y*width + tmp.x]);
+			}
+		}
+	}
+	//匹配数字
+	else if (char(content.content[tmp.y*width + tmp.x]) >= '0'&&char(content.content[tmp.y*width + tmp.x]) <= '9') {
+		//向后匹配
+		while (char(content.content[tmp.y*width + tmp.x]) >= '0'&&char(content.content[tmp.y*width + tmp.x]) <= '9') {
+			if (tmp.x == 0 && tmp.y == 0)break;
+			else if (tmp.x == 0) {
+				tmp.x = width - 1;
+				tmp.y--;
+			}
+			else tmp.x--;
+			//当前为字母数字组合
+			if (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z') {
+				//向后匹配
+				tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z') || (tmpChar >= '0' && tmpChar <= '9')) {
+					if (tmp.x == 0 && tmp.y == 0)break;
+					else if (tmp.x == 0) {
+						tmp.x = width - 1;
+						tmp.y--;
+					}
+					else tmp.x--;
+					tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				}
+				//向前匹配
+				if (tmp.x == 0 && tmp.y == 0);
+				else if (tmp.y != height - 1 && ++tmp.x == width) {
+					tmp.x = 0;
+					tmp.y++;
+				}
+				tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z') || (tmpChar >= '0' && tmpChar <= '9')) {
+					if (tmp.y != height - 1 && ++tmp.x == width) {
+						tmp.x = 0;
+						tmp.y++;
+					}
+					tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				}
+				//去除高亮
+				if (tmp.x == 0 && tmp.y == 0)break;
+				else if (tmp.x == 0) {
+					tmp.x = width - 1;
+					tmp.y--;
+				}
+				else tmp.x--;
+				tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				while ((tmpChar >= 'a'&&tmpChar <= 'z') || (tmpChar >= 'A'&&tmpChar <= 'Z') || (tmpChar >= '0' && tmpChar <= '9')) {
+					content.content[tmp.y*width + tmp.x] &= 0xF0FF;
+					content.content[tmp.y*width + tmp.x] |= (YELLOW << 8);
+					if (tmp.x == 0 && tmp.y == 0)break;
+					else if (tmp.x == 0) {
+						tmp.x = width - 1;
+						tmp.y--;
+					}
+					else tmp.x--;
+					tmpChar = char(content.content[tmp.y*width + tmp.x]);
+				}
+				return;
+			}
+		}
+		//向前匹配
+		if (tmp.x == 0 && tmp.y == 0);
+		else if (tmp.y != height - 1 && ++tmp.x == width) {
+			tmp.x = 0;
+			tmp.y++;
+		}
+		while (char(content.content[tmp.y*width + tmp.x]) >= '0'&&char(content.content[tmp.y*width + tmp.x]) <= '9') {
+			if (tmp.y != height - 1 && ++tmp.x == width) {
+				tmp.x = 0;
+				tmp.y++;
+			}
+			if (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z')return;
+		}
+		//数字高亮显示
+		if (tmp.x == 0 && tmp.y == 0)return;
+		else if (tmp.x == 0) {
+			tmp.x = width - 1;
+			tmp.y--;
+		}
+		else tmp.x--;
+		while (char(content.content[tmp.y*width + tmp.x]) >= '0'&&char(content.content[tmp.y*width + tmp.x]) <= '9') {
+			content.content[tmp.y*width + tmp.x] &= 0xF0FF;
+			content.content[tmp.y*width + tmp.x] |= (LIGHTGREEN << 8);
+			if (tmp.x == 0 && tmp.y == 0)return;
+			else if (tmp.x == 0) {
+				tmp.x = width - 1;
+				tmp.y--;
+			}
+			else tmp.x--;
+		}
+		return;
+	}
+}
 void editor::check() {
 	int j;
+	//检测行尾位置
 	for (int i = 0; i < height; i++) {
 		for (j = width; j > 0; j--) {
 			if (char(content.content[i*width + j - 1]))break;
 		}
 		endL[i] = j;
 	}
+	//检测行首位置
 	for (int i = 0; i < height; i++) {
 		for (j = 0; j < width; j++) {
 			if (char(content.content[i*width + j]) != ' ')break;
@@ -95,16 +282,13 @@ void editor::cursor() {
 void editor::operate(int bioK) {
 	static int endMax = 0;
 	if (bioK >= 0x20 && bioK < 0x80) {
-		static bool complete = false;
 		char out = (endL[cursorPos.y] == width) ? content.content[cursorPos.y*width + width - 1] : 0;
+		//当前行即将填满且不是最后一行，进行整体下移
 		if ((endL[cursorPos.y] == width - 1) && (cursorPos.y < height - 1)) {
-			for (int i = height - 2; i > cursorPos.y; i--) {
-				memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
-			}
-			for (int i = 0; i < width; i++) {
-				content.content[(cursorPos.y + 1)*width + i] &= 0xFF00;
-			}
+			for (int i = height - 2; i > cursorPos.y; i--)memcpy(content.content + (i + 1)*width, content.content + i*width, width * sizeof(short));
+			for (int i = 0; i < width; i++)content.content[(cursorPos.y + 1)*width + i] &= 0xFF00;
 		}
+		//当前行已满且不是最后一行，尾部字符递归填入下一行
 		if ((endL[cursorPos.y] == width) && (cursorPos.y < height - 1)) {
 			vecTwo tmp = cursorPos;
 			cursorPos.x = 0;
@@ -112,73 +296,38 @@ void editor::operate(int bioK) {
 			operate(out);
 			cursorPos = tmp;
 		}
-		for (int i = width - 1; i > cursorPos.x; i--) {
-			content.content[cursorPos.y*width + i] = content.content[cursorPos.y*width + i - 1];
-		}
+		//当前行填入字符
+		for (int i = width - 1; i > cursorPos.x; i--)content.content[cursorPos.y*width + i] = content.content[cursorPos.y*width + i - 1];
 		content.content[cursorPos.y*width + cursorPos.x] &= 0xFF00;
 		content.content[cursorPos.y*width + cursorPos.x] |= bioK;
 		cursorPos.x = (cursorPos.x + 1) % width;
 		cursorPos.y += (cursorPos.x ? 0 : 1);
+		check();
 
+		//括号自动补全
 		if (bioK == '(') { operate(')'); operate(SG_LEFT); complete = true; }
 		if (bioK == '[') { operate(']'); operate(SG_LEFT); complete = true; }
 		if (bioK == '{') { operate('}'); operate(SG_LEFT); complete = true; }
 		if (bioK == ')'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
 		if (bioK == ']'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
 		if (bioK == '}'&&complete) { operate(SG_BACKS); operate(SG_RIGHT); complete = false; }
-		if (bioK >= 'a'&&bioK <= 'z') {
-			char *cc = (char *)malloc(12);
-			int ccn = 0;
+
+		//语法高亮
+		if ((bioK >= 'a'&&bioK <= 'z') || (bioK >= 'A'&&bioK <= 'Z')) match();
+		else if (bioK >= '0' && bioK <= '9') match();
+		else {
 			vecTwo tmp = cursorPos;
-			if (tmp.x == 0 && tmp.y == 0);
-			else if (tmp.x == 0) {
-				tmp.x = width - 1;
-				tmp.y--;
+			if (cursorPos.x == 0 && cursorPos.y == 0);
+			else if (cursorPos.x == 0) {
+				cursorPos.x = width - 1;
+				cursorPos.y--;
 			}
-			else tmp.x--;
-			while (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z') {
-				if (tmp.x == 0 && tmp.y == 0);
-				else if (tmp.x == 0) {
-					tmp.x = width - 1;
-					tmp.y--;
-				}
-				else tmp.x--;
-			}
-			if (tmp.y != height - 1 && ++tmp.x == width) {
-				tmp.x = 0;
-				tmp.y++;
-			}
-			while (tmp.x!=cursorPos.x||tmp.y!=cursorPos.y) {
-				cc[ccn++] = char(content.content[tmp.y*width + tmp.x]);
-				if (tmp.y != height - 1 && ++tmp.x == width) {
-					tmp.x = 0;
-					tmp.y++;
-				}
-			}
-			cc[ccn] = '\0';
-			for (int i = 0; i < 100; i++) {
-				if (keyWord[0][i] != NULL && strcmp(keyWord[0][i], cc) == 0) {
-					if (tmp.x == 0 && tmp.y == 0);
-					else if (tmp.x == 0) {
-						tmp.x = width - 1;
-						tmp.y--;
-					}
-					else tmp.x--;
-					while (char(content.content[tmp.y*width + tmp.x]) >= 'a'&&char(content.content[tmp.y*width + tmp.x]) <= 'z') {
-						content.content[tmp.y*width + tmp.x] &= 0xF0FF;
-						content.content[tmp.y*width + tmp.x] |= (LIGHTCYAN << 8);
-						if (tmp.x == 0 && tmp.y == 0);
-						else if (tmp.x == 0) {
-							tmp.x = width - 1;
-							tmp.y--;
-						}
-						else tmp.x--;
-					}
-					break;
-				}
-			}
+			else cursorPos.x--;
+			content.content[cursorPos.y*width + cursorPos.x] &= 0xF0FF;
+			content.content[cursorPos.y*width + cursorPos.x] |= (LIGHTGRAY << 8);
+			cursorPos = tmp;
 		}
-		check();
+
 		show();
 	}
 	if (bioK == SG_TAB) {
@@ -188,9 +337,14 @@ void editor::operate(int bioK) {
 		operate(' ');
 	}
 	if (bioK == SG_BACKS) {
+		complete = false;
+
+		//行首退格
 		if (cursorPos.x == 0) {
 			if (cursorPos.y != 0) {
+				//退格后前一行填满
 				if (endL[cursorPos.y] + endL[cursorPos.y - 1] > width) {
+					//前一行已满
 					if (endL[cursorPos.y - 1] == width) {
 						content.content[cursorPos.y*width - 1] = content.content[cursorPos.y*width];
 						for (int i = 1; i < width; i++) {
@@ -198,6 +352,7 @@ void editor::operate(int bioK) {
 						}
 						content.content[(cursorPos.y + 1)*width - 1] &= 0xFF00;
 					}
+					//前一行未满
 					else {
 						memcpy(content.content + (cursorPos.y - 1)*width + endL[cursorPos.y - 1], content.content + cursorPos.y*width, (width - endL[cursorPos.y - 1]) * sizeof(short));
 						memcpy(content.content + cursorPos.y*width, content.content + cursorPos.y*width + (width - endL[cursorPos.y - 1]), endL[cursorPos.y - 1] * sizeof(short));
@@ -205,6 +360,8 @@ void editor::operate(int bioK) {
 							content.content[cursorPos.y*width + i] &= 0xFF00;
 						}
 					}
+
+					//当前行已满，递归退格下一行
 					if ((endL[cursorPos.y] == width) && (cursorPos.y < height - 1)) {
 						endL[cursorPos.y] = endL[cursorPos.y - 1];
 						endL[cursorPos.y - 1] = width;
@@ -214,28 +371,26 @@ void editor::operate(int bioK) {
 						cursorPos = tmp;
 					}
 				}
+				//退格后前一行仍未满
 				else {
-					if (endL[cursorPos.y - 1] == width) {
-						content.content[cursorPos.y*width - 1] &= 0xFF00;
-					}
+					if (endL[cursorPos.y - 1] == width)content.content[cursorPos.y*width - 1] &= 0xFF00;
 					memcpy(content.content + (cursorPos.y - 1)*width + endL[cursorPos.y - 1], content.content + cursorPos.y*width, endL[cursorPos.y] * sizeof(short));
-					for (int i = cursorPos.y; i < height - 1; i++) {
-						memcpy(content.content + i*width, content.content + (i + 1)*width, width * sizeof(short));
-					}
-					for (int i = 0; i < width; i++) {
-						content.content[(height - 1)*width + i] &= 0xFF00;
-					}
+					for (int i = cursorPos.y; i < height - 1; i++)memcpy(content.content + i*width, content.content + (i + 1)*width, width * sizeof(short));
+					for (int i = 0; i < width; i++)content.content[(height - 1)*width + i] &= 0xFF00;
 				}
-				cursorPos.x = endL[cursorPos.y - 1] < width ? endL[cursorPos.y - 1] : width - 1;;
+				cursorPos.x = endL[cursorPos.y - 1] < width ? endL[cursorPos.y - 1] : width - 1;
 				cursorPos.y -= 1;
 			}
 		}
+		//普通退格
 		else {
 			if (endL[cursorPos.y] >= cursorPos.x) {
 				for (int i = cursorPos.x; i < width; i++) {
 					content.content[cursorPos.y*width + i - 1] = content.content[cursorPos.y*width + i];
 				}
 				content.content[(cursorPos.y + 1)*width - 1] &= 0xFF00;
+
+				//当前行已满，递归退格下一行
 				if ((endL[cursorPos.y] == width)&&(cursorPos.y < height - 1)) {
 					vecTwo tmp = cursorPos;
 					cursorPos.x = 0;
@@ -247,10 +402,15 @@ void editor::operate(int bioK) {
 			cursorPos.x--;
 		}
 		check();
+
+		//语法高亮检查
+		match();
 		show();
 	}
 	if (bioK == SG_ENTER) {
-		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+		complete = false;
+
+		//页尾换行
 		if (cursorPos.y == height - 1) {
 			for (int i = 1; i < height; i--) {
 				memcpy(content.content + (i - 1)*width, content.content + i*width, width * sizeof(short));
@@ -264,6 +424,7 @@ void editor::operate(int bioK) {
 			}
 			cursorPos.x = 0;
 		}
+		//普通换行
 		else {
 			if (endL[cursorPos.y] < width) {
 				for (int i = height - 2; i > cursorPos.y; i--) {
@@ -302,6 +463,8 @@ void editor::operate(int bioK) {
 			cursorPos.y++;
 			cursorPos.x = 0;
 		}
+
+		//自动缩进
 		for (int i = 0; i < tabS[cursorPos.y - 1]; i++)operate(' ');
 		if (char(content.content[cursorPos.y*width + cursorPos.x]) == '}') {
 			cursorPos.y--;
@@ -309,22 +472,34 @@ void editor::operate(int bioK) {
 			operate(SG_ENTER);
 			operate(SG_TAB);
 		}
+
 		check();
+		//高亮检测
+		vecTwo tmp = cursorPos;
+		cursorPos.x++;
+		match();
+		cursorPos.y--;
+		cursorPos.x = endL[tmp.y];
+		match();
+		cursorPos = tmp;
 		show();
 	}
 	if (bioK == SG_UP) {
+		complete = false;
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		cursorPos.y -= (cursorPos.y ? 1 : 0);
 		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
 		else cursorPos.x = endMax;
 	}
 	if (bioK == SG_DOWN) {
+		complete = false;
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		cursorPos.y += ((height - cursorPos.y - 1) ? 1 : 0);
 		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
 		else cursorPos.x = endMax;
 	}
 	if (bioK == SG_LEFT) {
+		complete = false;
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		if (cursorPos.x == 0) {
 			if (cursorPos.y != 0) {
@@ -332,30 +507,29 @@ void editor::operate(int bioK) {
 				cursorPos.x = endL[cursorPos.y];
 			}
 		}
-		else {
-			cursorPos.x--;
-		}
+		else cursorPos.x--;
 		endMax = cursorPos.x;
 	}
 	if (bioK == SG_RIGHT) {
+		complete = false;
 		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		if (cursorPos.x == endL[cursorPos.y]) {
 			cursorPos.y++;
 			cursorPos.x = 0;
 		}
-		else {
-			cursorPos.x++;
-		}
+		else cursorPos.x++;
 		endMax = cursorPos.x;
 	}
 }
 void editor::operate(vecThree bioM) {
+	complete = false;
 	vecTwo tmp = Mouse.grid(bioM.x, bioM.y);
 	if (tmp.x<1 || tmp.x>width)return;
 	if (tmp.y<2 || tmp.y>height + 1)return;
 	Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 	cursorPos.y = tmp.y - 2;
 	cursorPos.x = tmp.x - 1 < endL[cursorPos.y] ? tmp.x - 1 : endL[cursorPos.y];
+	endMax = cursorPos.x;
 }
 
 frame::frame() {
@@ -416,7 +590,7 @@ void frame::loop() {
 			restore();
 		}
 	}
-	if (key)Editor.operate(key^0x8000);
+	if (key&&!opening)Editor.operate(key^0x8000);
 	if (click.x < 0 || click.y < 0)return;
 	vecTwo clickF = Mouse.grid(click.x, click.y);
 	if (!opening) {
