@@ -1,5 +1,9 @@
 #pragma once
 #include "screen.h"
+
+#define MAX_KEYWORD_LEN 12
+#define LANGUAGE_NUM 1
+
 #define inRect(x, y, xx, yy, xxx, yyy) (((x)>=(xx)&&(x)<=(xxx))&&((y)>=(yy)&&(y)<=(yyy)))
 
 enum COLORS {
@@ -24,6 +28,7 @@ struct textMap {
 	int width, height;
 	short *content;
 };
+//文本模式
 class text {
 private:
 	unsigned short *content;
@@ -31,6 +36,7 @@ private:
 	const int width = 80, height = 25;
 	char color;
 
+	//提取背景色
 	RGB bgc(short c) {
 		c >>= 12;
 		c &= 0x000F;
@@ -54,6 +60,7 @@ private:
 		}
 		return{ 0, 0, 0 };
 	}
+	//提取前景色
 	RGB fgc(short c) {
 		c >>= 8;
 		c &= 0x000F;
@@ -77,6 +84,7 @@ private:
 		}
 		return{ 0, 0, 0 };
 	}
+	//更新某点信息
 	void renew(short c, int x, int y) {
 		RGB b = bgc(c), f = fgc(c);
 		setColor(b.r, b.g, b.b);
@@ -86,33 +94,92 @@ private:
 	}
 public:
 	text();
+
+	//更新屏幕所有点
 	void update();
+	//设置内置颜色
 	void setcolor(int bgc, int fgc);
+	//设置某点颜色
 	void setcolor(char color, int x, int y);
+	//设置某点背景色
 	void setbgcolor(char color, int x, int y);
+	//设置某点前景色
 	void setfgcolor(char color, int x, int y);
+	//用内置颜色写字符
 	void putchar(char c, int x, int y);
+	//用内置颜色写字符串
 	void putstring(char *s, int x, int y);
+	//获取某点信息
 	short getpoint(int x, int y);
+	//复制矩形区域
 	void gettext(int left, int up, int right, int bottom, textMap *text);
+	//粘贴矩形区域
 	void puttext(int left, int up, const textMap *text);
 };
 
+//文件存取
+class file {
+private:
+	char *fileName;
+	char *fileFolder;
+	char *fileContent;
+public:
+	int fileLength;
+	int editorBegin;
+	int editorEnd;
+
+	file();
+	bool openFile(char *fileName);
+	bool saveFile(char *fileName);
+	int putRow(int pos, int line);
+};
+
+//内容编辑器
 class editor {
 private:
+	//当前屏幕区域内容
+	const textMap content = { 78, 22, (short*)malloc(78 * 22 * sizeof(short)) };
 	const int width = 78, height = 22;
+	//光标坐标
 	vecTwo cursorPos;
+	//剪贴板
 	unsigned char *clipBoard;
-	const textMap content = {78, 22, (short*)malloc(78*22*sizeof(short))};
+	//括号自动补全
+	bool complete = false;
+	//上下光标对齐
+	int endMax = 0;
+	//行尾位置
+	int endL[22] = { 0 };
+	//行首位置
+	int tabS[22] = { 0 };
+	enum LANGUAGE;
+	//关键字集合
+	static char *keyWord[5][100];
+	//编辑器内容送入屏幕
 	void show();
 	void cut(vecTwo start, vecTwo end);
 	void copy(vecTwo start, vecTwo end);
 	void paste(vecTwo pos);
-	void gotoxy(int x, int y);
+	//高亮匹配
+	void match();
+	//检测行首行尾位置
+	void check();
 public:
 	editor();
+	//鼠标闪烁
+	void cursor();
+	//编辑器挂起
+	void suspend();
+	//清屏
+	void clear();
+	//响应键盘操作
+	void operate(int bioK, bool comp = true);
+	//响应鼠标操作
 	void operate(vecThree bioM);
-	void operate(int bioK);
+
+	friend bool file::openFile(char *fileName);
+	friend bool file::saveFile(char *fileName);
+	friend int file::putRow(int pos, int line);
 };
 
 enum MENUS {
@@ -133,46 +200,50 @@ enum WINDOWS {
 	TOOLS_SEARCH,
 	TOOLS_REPLACE,
 	HELP_VERSION,
-	HELP_HELP
+	HELP_HELP,
+	ALERT_MESSAGE
 };
+//架构器
 class frame {
 private:
 	bool ctrling, shifting, alting, draging;
 	int menu, window;
+	//菜单是否打开
 	bool opening = false;
+	//覆盖区域内容
 	textMap *txt;
+	//打开菜单
 	void list(int menu);
+	//打开窗口
 	void open(int window);
+	//恢复菜单与窗口
 	void restore();
 public:
 	frame();
+	//主循环
 	void loop();
 	friend void editor::operate(vecThree bioM);
-	friend void editor::operate(int bioK);
+	friend void editor::operate(int bioK, bool comp);
 };
 
+//鼠标处理
 class mouse {
 private:
 	int x, y;
 	int pressed;
+	//上一位置内容
 	unsigned char oldc;
 public:
+	//光栅化鼠标坐标
 	vecTwo grid();
+	//光栅化输入坐标
 	vecTwo grid(int x, int y);
+	//照常更新
 	void update();
+	//单独恢复上一位置
 	void restore();
+	//单独覆盖下一位置
 	void renew();
-};
-
-class file {
-private:
-	char *fileName;
-	char *fileFolder;
-	char *fileContent;
-public:
-	file();
-	bool open(char *fileName);
-	bool save(char *fileName);
 };
 
 bool operator==(vecTwo a, vecTwo b);
