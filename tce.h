@@ -1,10 +1,16 @@
 #pragma once
 #include "screen.h"
+#include "direct.h"
 
 #define MAX_KEYWORD_LEN 12
 #define LANGUAGE_NUM 1
 
 #define inRect(x, y, xx, yy, xxx, yyy) (((x)>=(xx)&&(x)<=(xxx))&&((y)>=(yy)&&(y)<=(yyy)))
+
+class functions {
+public:
+	static void closeTCE();
+};
 
 enum COLORS {
 	BLACK,       /* dark colors */
@@ -122,16 +128,17 @@ class file {
 private:
 	char *fileName;
 	char *fileFolder;
-	char *fileContent;
 public:
-	int fileLength;
 	int editorBegin;
 	int editorEnd;
+	int fileLength;
+	char *fileContent;
 
 	file();
 	bool openFile(char *fileName);
 	bool saveFile(char *fileName);
-	int putRow(int pos, int line);
+	void closeFile();
+	char posContent(int pos);
 };
 
 //内容编辑器
@@ -155,8 +162,6 @@ private:
 	enum LANGUAGE;
 	//关键字集合
 	static char *keyWord[5][100];
-	//编辑器内容送入屏幕
-	void show();
 	void cut(vecTwo start, vecTwo end);
 	void copy(vecTwo start, vecTwo end);
 	void paste(vecTwo pos);
@@ -168,18 +173,23 @@ public:
 	editor();
 	//鼠标闪烁
 	void cursor();
+	//编辑器内容送入屏幕
+	void show();
 	//编辑器挂起
 	void suspend();
 	//清屏
 	void clear();
+	//输出单行
+	int putRow(int pos, int line);
 	//响应键盘操作
 	void operate(int bioK, bool comp = true);
-	//响应鼠标操作
+	//响应鼠标点击操作
 	void operate(vecThree bioM);
+	//响应鼠标滚轮操作
+	void stroll(int dir);
 
 	friend bool file::openFile(char *fileName);
 	friend bool file::saveFile(char *fileName);
-	friend int file::putRow(int pos, int line);
 };
 
 enum MENUS {
@@ -203,15 +213,26 @@ enum WINDOWS {
 	HELP_HELP,
 	ALERT_MESSAGE
 };
+enum ALERTTYPE {
+	NO_BUTTON = 0,
+	OK_BUTTON = 1,
+	CANCEL_BUTTON = 2
+};
 //架构器
 class frame {
 private:
 	bool ctrling, shifting, alting, draging;
-	int menu, window;
+	int menu, window, alertReturn;
+	static const char *newFileAlert, *saveCurrentAlert, *saveAsAlert, *closeFileAlert, *closeTCEAlert,
+		*undoAlert, *redoAlert, *cutAlert, *copyAlert, *pasteAlert, *deleteAlert, *gotoAlert, *clipboardAlert,
+		*settingAlert, *searchAlert, *replaceAlert,
+		*compileAlert, *runAlert, *debugAlert;
 	//菜单是否打开
 	bool opening = false;
 	//覆盖区域内容
 	textMap *txt;
+	//响应函数
+	vect tmpVect;
 	//打开菜单
 	void list(int menu);
 	//打开窗口
@@ -220,8 +241,10 @@ private:
 	void restore();
 public:
 	frame();
+	friend functions;
 	//主循环
 	void loop();
+	void alert(const char *content, int type);
 	friend void editor::operate(vecThree bioM);
 	friend void editor::operate(int bioK, bool comp);
 };
@@ -248,3 +271,4 @@ public:
 
 bool operator==(vecTwo a, vecTwo b);
 bool operator==(vecThree a, vecThree b);
+LPWSTR widen(char *src);

@@ -160,7 +160,7 @@ void editor::match() {
 		//关键字高亮显示
 		int i;
 		for (i = 0; i < 100; i++) {
-			if (keyWord[0][i] != NULL && strcmp(keyWord[0][i], cc) == 0) {
+			if (keyWord[1][i] != NULL && strcmp(keyWord[1][i], cc) == 0) {
 				if (tmp.x == 0 && tmp.y == 0)break;
 				else if (tmp.x == 0) {
 					tmp.x = width - 1;
@@ -367,8 +367,8 @@ void editor::check() {
 }
 void editor::cursor() {
 	static int t = 0;
-	t = (t + 1) % 400;
-	if (t / 200)Text.setbgcolor(WHITE, cursorPos.x+1, cursorPos.y+2);
+	t = (t + 1) % 160;
+	if (t / 100)Text.setbgcolor(WHITE, cursorPos.x+1, cursorPos.y+2);
 	else Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 }
 void editor::suspend() {
@@ -379,8 +379,28 @@ void editor::clear() {
 		content.content[i] = BLUE << 12 | YELLOW << 8;
 	}
 }
+int editor::putRow(int pos, int line) {
+	vecTwo tmp = cursorPos;
+	cursorPos.y = line;
+	cursorPos.x = 0;
+	for (int i = 0; i < width; i++) {
+		content.content[cursorPos.y*width + cursorPos.x] = (BLUE << 12 | YELLOW << 8);
+	}
+	while (File.fileContent[++pos] != '\r'&&cursorPos.x < width - 1) {
+		operate(File.fileContent[pos], false);
+		if (pos == File.fileLength)return pos;
+	}
+	for (int i = cursorPos.x; i < width; i++) {
+		content.content[line*width + i] &= 0xFF00;
+	}
+	if (cursorPos.x == width - 1 && File.fileContent[pos] != '\r') {
+		content.content[line*width + width - 1] &= 0xFF00;
+		content.content[line*width + width - 1] |= File.fileContent[pos];
+	}
+	cursorPos = tmp;
+	return pos;
+}
 void editor::operate(int bioK, bool comp) {
-	static int endMax = 0;
 	if (bioK >= 0x20 && bioK < 0x80) {
 		char out = (endL[cursorPos.y] == width) ? content.content[cursorPos.y*width + width - 1] : 0;
 		//当前行即将填满且不是最后一行，进行整体下移
@@ -612,19 +632,59 @@ void editor::operate(int bioK, bool comp) {
 	}
 	if (bioK == SG_UP) {
 		complete = false;
-		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
-		cursorPos.y -= (cursorPos.y ? 1 : 0);
+		if (cursorPos.y == 0) {
+			if (File.editorBegin == 0)return;
+			if (File.posContent(--File.editorBegin) == '\n')File.editorBegin -= 2;
+			if (File.editorBegin < 0) {
+				File.editorBegin = 0;
+				return;
+			}
+			if (File.posContent(File.editorBegin) == '\n')File.editorBegin++;
+			int lineEnd = File.editorBegin, tabNum = 0;
+			while (File.editorBegin && File.posContent(--File.editorBegin) != '\n') {
+				if (File.posContent(File.editorBegin) == '\t')tabNum++;
+			}
+			int deltaChar = (lineEnd - File.editorBegin + tabNum*3 - 1) % width + 1;
+			tabNum = 0;
+			for (int i = 0; i < deltaChar; i++) {
+				if (File.posContent(lineEnd - i) == '\t') {
+					tabNum++;
+					deltaChar -= 3;
+				}
+			}
+			File.editorBegin = (lineEnd - deltaChar) ? (lineEnd - deltaChar) + 1 : (lineEnd - deltaChar);
+			File.editorEnd -= endL[height - 1] - tabS[height - 1] + 1;
+			while (File.posContent(File.editorEnd) == '\t')File.editorEnd--;
+			if (File.posContent(File.editorEnd) == '\n')File.editorEnd--;
+			for (int i = height - 1; i > 0; i--) {
+				memcpy(content.content + i*width, content.content + (i - 1)*width, width * sizeof(short));
+			}
+			for (int i = 0; i < width; i++) {
+				content.content[i] &= 0xFF00;
+			}
+			putRow(File.editorBegin-1, 0);
+		}
+		else cursorPos.y--;
+		check();
 		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
 		else cursorPos.x = endMax;
+		show();
 	}
 	if (bioK == SG_DOWN) {
 		complete = false;
-		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		if (cursorPos.y == height - 1) {
-			if (File.editorEnd == File.fileLength)return;
+			if (File.editorEnd >= File.fileLength)return;
 			for (int i = 0; i < width; i++) {
+				if (File.posContent(File.editorBegin) < 0) {
+					File.editorBegin += 2;
+					i--;
+					continue;
+				}
 				if (!char(content.content[i])) { File.editorBegin += 2; break; }
-				else File.editorBegin++;
+				else {
+					if (File.posContent(File.editorBegin) == '\t')i += 3;
+					File.editorBegin++;
+				}
 			}
 			for (int i = 1; i < height; i++) {
 				memcpy(content.content + (i - 1)*width, content.content + i*width, width * sizeof(short));
@@ -632,16 +692,16 @@ void editor::operate(int bioK, bool comp) {
 			for (int i = 0; i < width; i++) {
 				content.content[(height-1)*width + i] &= 0xFF00;
 			}
-			File.editorEnd = File.putRow(File.editorEnd, height - 1);
+			File.editorEnd = putRow(File.editorEnd, height - 1);
 		}
 		else cursorPos.y++;
 		check();
 		if (endL[cursorPos.y] < endMax)cursorPos.x = endL[cursorPos.y];
 		else cursorPos.x = endMax;
+		show();
 	}
 	if (bioK == SG_LEFT) {
 		complete = false;
-		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		if (cursorPos.x == 0) {
 			if (cursorPos.y != 0) {
 				cursorPos.y--;
@@ -650,16 +710,24 @@ void editor::operate(int bioK, bool comp) {
 		}
 		else cursorPos.x--;
 		endMax = cursorPos.x;
+		show();
 	}
 	if (bioK == SG_RIGHT) {
 		complete = false;
-		Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 		if (cursorPos.x == endL[cursorPos.y]) {
-			cursorPos.y++;
-			cursorPos.x = 0;
+			if (cursorPos.y < height - 1) {
+				cursorPos.y++;
+				cursorPos.x = 0;
+			}
+			else if(File.editorEnd<File.fileLength){
+				operate(SG_DOWN);
+				operate(SG_UP);
+				operate(SG_RIGHT);
+			}
 		}
 		else cursorPos.x++;
 		endMax = cursorPos.x;
+		show();
 	}
 }
 void editor::operate(vecThree bioM) {
@@ -672,10 +740,34 @@ void editor::operate(vecThree bioM) {
 	cursorPos.x = tmp.x - 1 < endL[cursorPos.y] ? tmp.x - 1 : endL[cursorPos.y];
 	endMax = cursorPos.x;
 }
+void editor::stroll(int dir) {
+	if (dir == SG_MIDDLE_BUTTON_UP) {
+		vecTwo tmp = cursorPos;
+		cursorPos.x = 0;
+		cursorPos.y = 0;
+		operate(SG_UP);
+		operate(SG_UP);
+		operate(SG_UP);
+		cursorPos = tmp;
+	}
+	if (dir == SG_MIDDLE_BUTTON_DOWN) {
+		vecTwo tmp = cursorPos;
+		cursorPos.x = 0;
+		cursorPos.y = height-1;
+		operate(SG_DOWN);
+		operate(SG_DOWN);
+		operate(SG_DOWN);
+		cursorPos = tmp;
+	}
+}
 
+void voidFunc(void) {
+	return;
+}
 frame::frame() {
 	ctrling = shifting = alting = draging = 0;
-	menu = window = 0;
+	menu = window = alertReturn = 0;
+	tmpVect = voidFunc;
 	Text.setcolor(LIGHTGRAY, BLACK);
 	Text.putstring("  File    Edit   Tools    Run     Help                                          ", 0, 0);
 	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 2, 0);
@@ -694,6 +786,7 @@ frame::frame() {
 	Text.putchar('*', 0, 24);
 }
 void frame::loop() {
+	LoadKeyboardLayout(widen("0x0409"), KLF_ACTIVATE | KLF_SETFORPROCESS);
 	Mouse.update();
 
 	vecThree click = { -1, -1, -1 };
@@ -704,6 +797,7 @@ void frame::loop() {
 	if (biosMouse(1).m)click = biosMouse(0);
 	if (biosKey(1))key = biosKey(0);
 
+	//响应键盘动态
 	switch (key) {
 	case SG_LCTRL | 0x8000:
 	case SG_RCTRL | 0x8000:
@@ -731,7 +825,6 @@ void frame::loop() {
 		break;
 	case SG_ESC | 0x8000:
 		if (opening) {
-			menu = NONE;
 			opening = false;
 			restore();
 		}
@@ -744,75 +837,218 @@ void frame::loop() {
 
 	if (click.x < 0 || click.y < 0)return;
 	vecTwo clickF = Mouse.grid(click.x, click.y);
+
+	//响应编辑时鼠标动态
 	if (!opening) {
 		if (inRect(clickF.x, clickF.y, 0, 0, 7, 0))list(FILES);
 		else if (inRect(clickF.x, clickF.y, 8, 0, 15, 0))list(EDIT);
 		else if (inRect(clickF.x, clickF.y, 16, 0, 23, 0))list(TOOLS);
 		else if (inRect(clickF.x, clickF.y, 24, 0, 31, 0))list(RUN);
 		else if (inRect(clickF.x, clickF.y, 32, 0, 39, 0))list(HELP);
-		Editor.operate(click);
+		if (click.m == SG_LEFT_BUTTON)Editor.operate(click);
+		if ((click.m == SG_MIDDLE_BUTTON_UP) || (click.m == SG_MIDDLE_BUTTON_DOWN))Editor.stroll(click.m);
 	}
+	//响应列表时鼠标动态
 	else if (menu != NONE) {
+		//列表切换
 		if (inRect(clickF.x, clickF.y, 0, 0, 7, 0)) {
+			int tmp = menu;
 			restore();
-			if(menu != FILES)list(FILES);
+			if(tmp != FILES)list(FILES);
 			else {
 				opening = false;
 				menu = NONE;
 			}
 		}
 		else if (inRect(clickF.x, clickF.y, 8, 0, 15, 0)) {
+			int tmp = menu;
 			restore();
-			if(menu != EDIT)list(EDIT);
+			if(tmp != EDIT)list(EDIT);
 			else {
 				opening = false;
 				menu = NONE;
 			}
 		}
 		else if (inRect(clickF.x, clickF.y, 16, 0, 23, 0)) {
+			int tmp = menu;
 			restore();
-			if(menu != TOOLS)list(TOOLS);
+			if(tmp != TOOLS)list(TOOLS);
 			else {
 				opening = false;
 				menu = NONE;
 			}
 		}
 		else if (inRect(clickF.x, clickF.y, 24, 0, 31, 0)) {
+			int tmp = menu;
 			restore();
-			if(menu != RUN)list(RUN);
+			if(tmp != RUN)list(RUN);
 			else {
 				opening = false;
 				menu = NONE;
 			}
 		}
 		else if (inRect(clickF.x, clickF.y, 32, 0, 39, 0)) {
+			int tmp = menu;
 			restore();
-			if(menu != HELP)list(HELP);
+			if(tmp != HELP)list(HELP);
 			else {
 				opening = false;
 				menu = NONE;
 			}
 		}
 
-		else if (inRect(clickF.x, clickF.y, 0, 3, 19, 3)) {
-			restore();
-			opening = false;
-			menu = NONE;
-			File.openFile("tce.h");
+		//文件相关窗口
+		if (menu == FILES) {
+			if (inRect(clickF.x, clickF.y, 0, 2, 19, 2)) {
+				alert(newFileAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 0, 3, 19, 3)) {
+				restore();
+				opening = false;
+				menu = NONE;
+				File.openFile("tce.h");
+			}
+			else if (inRect(clickF.x, clickF.y, 0, 4, 19, 4)) {
+				alert(saveCurrentAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 0, 5, 19, 5)) {
+				alert(saveAsAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 0, 7, 19, 7)) {
+				restore();
+				opening = false;
+				menu = NONE;
+				File.closeFile();
+				Editor.show();
+			}
+			else if (inRect(clickF.x, clickF.y, 0, 8, 19, 8)) {
+				alert(closeTCEAlert, OK_BUTTON | CANCEL_BUTTON);
+				tmpVect = functions::closeTCE;
+			}
 		}
-		else if (inRect(clickF.x, clickF.y, 0, 8, 19, 8)) {
-			exit(0);
+		//编辑相关窗口
+		if (menu == EDIT) {
+			if (inRect(clickF.x, clickF.y, 8, 2, 27, 2)) {
+				alert(undoAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 3, 27, 3)) {
+				alert(redoAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 5, 27, 5)) {
+				alert(cutAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 6, 27, 6)) {
+				alert(copyAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 7, 27, 7)) {
+				alert(pasteAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 8, 27, 8)) {
+				alert(deleteAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 9, 27, 9)) {
+				alert(gotoAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 8, 11, 27, 11)) {
+				alert(clipboardAlert, OK_BUTTON);
+			}
 		}
-
-		else if (inRect(clickF.x, clickF.y, 32, 2, 51, 2))open(HELP_VERSION);
-		//else if (inRect(clickF.x, clickF.y, 32, 3, 51, 3))open(HELP_HELP);
+		//工具相关窗口
+		if (menu == TOOLS) {
+			if (inRect(clickF.x, clickF.y, 16, 2, 35, 2)) {
+				alert(settingAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 16, 4, 35, 4)) {
+				alert(searchAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 16, 5, 35, 5)) {
+				alert(replaceAlert, OK_BUTTON);
+			}
+		}
+		//运行相关窗口
+		if (menu == RUN) {
+			if (inRect(clickF.x, clickF.y, 24, 2, 43, 2)) {
+				alert(compileAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 24, 3, 43, 3)) {
+				alert(runAlert, OK_BUTTON);
+			}
+			else if (inRect(clickF.x, clickF.y, 24, 5, 43, 5)) {
+				alert(debugAlert, OK_BUTTON);
+			}
+		}
+		//帮助相关窗口
+		if (menu == HELP) {
+			if (inRect(clickF.x, clickF.y, 32, 2, 51, 2))open(HELP_VERSION);
+			//else if (inRect(clickF.x, clickF.y, 32, 3, 51, 3))open(HELP_HELP);
+		}
 	}
+	//响应窗口时鼠标动态
 	else {
+		//关闭版本窗口
 		if (window == HELP_VERSION&&clickF.x == 53 && clickF.y == 5) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
 			opening = false;
+		}
+
+		//关闭提示窗口
+		if (window == ALERT_MESSAGE&&clickF.x == 59 && clickF.y == 5) {
+			restore();
+			menu = NONE;
+			window = EMPTY_WINDOW;
+			alertReturn = NO_BUTTON;
+			opening = false;
+			tmpVect();
+		}
+		//单确定窗口点击确定
+		if (window == ALERT_MESSAGE
+			&&((alertReturn & OK_BUTTON) && !(alertReturn & CANCEL_BUTTON))
+			&& inRect(clickF.x, clickF.y, 36, 13, 43, 13)) {
+			restore();
+			menu = NONE;
+			window = EMPTY_WINDOW;
+			alertReturn = OK_BUTTON;
+			opening = false;
+			tmpVect();
+			tmpVect = voidFunc;
+		}
+		//单取消窗口点击取消
+		if (window == ALERT_MESSAGE
+			&& (!(alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
+			&& inRect(clickF.x, clickF.y, 36, 13, 43, 13)) {
+			restore();
+			menu = NONE;
+			window = EMPTY_WINDOW;
+			alertReturn = CANCEL_BUTTON;
+			opening = false;
+			tmpVect();
+			tmpVect = voidFunc;
+		}
+		//确定取消窗口点击确定
+		if (window == ALERT_MESSAGE
+			&& ((alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
+			&& inRect(clickF.x, clickF.y, 28, 13, 35, 13)) {
+			restore();
+			menu = NONE;
+			window = EMPTY_WINDOW;
+			alertReturn = OK_BUTTON;
+			opening = false;
+			tmpVect();
+			tmpVect = voidFunc;
+		}
+		//确定取消窗口点击取消
+		if (window == ALERT_MESSAGE
+			&& ((alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
+			&& inRect(clickF.x, clickF.y, 44, 13, 51, 13)) {
+			restore();
+			menu = NONE;
+			window = EMPTY_WINDOW;
+			alertReturn = CANCEL_BUTTON;
+			opening = false;
+			tmpVect();
+			tmpVect = voidFunc;
 		}
 	}
 }
@@ -914,7 +1150,6 @@ void frame::open(int window) {
 			Text.putstring("|  sion of TCE. Any sugg-  |", 26, 9);
 			Text.putstring("|  estions are welcomed.   |", 26, 10);
 			Text.putstring("|                          |", 26, 11);
-			Text.putstring("|                          |", 26, 11);
 			Text.putstring("|                          |", 26, 12);
 			Text.putstring("|                          |", 26, 13);
 			Text.putstring("*--------------------------*", 26, 14);
@@ -926,11 +1161,76 @@ void frame::open(int window) {
 		menu = NONE;
 		this->window = window;
 }
-void frame::restore() {
-	static vecTwo leftTop[11] = { {0, 0}, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 26, 5 }, { 0, 0 }, { 0, 0 } };
+void frame::alert(const char *content, int type) {
+	const int width = 34, height = 7;
+	restore();
 	Mouse.restore();
-	if(menu!=NONE)Text.puttext(8 * (menu - 1), 0, txt);
-	else Text.puttext(leftTop[window].x, leftTop[window].y, txt);
+
+	char *alertLine[height];
+	for (int i = 0; i < height; i++) {
+		alertLine[i] = (char *)malloc((width+1) * sizeof(char));
+		for (int j = 0; j < width; j++) {
+			alertLine[i][j] = ' ';
+		}
+		alertLine[i][width] = '\0';
+	}
+	vecTwo alertPos = { 0, 0 };
+	for (GLuint i = 0; i < strlen(content); i++) {
+		if (++alertPos.x == width || content[i] == '\n') {
+			alertPos.x = 0;
+			alertPos.y++;
+			if (content[i] != '\n')i--;
+			continue;
+		}
+		if (alertPos.y == height)break;
+		alertLine[alertPos.y][alertPos.x] = content[i];
+	}
+
+	Text.gettext(20, 5, 59, 14, txt);
+	Text.setcolor(LIGHTGRAY, BLACK);
+	Text.putstring("*--------------------------------------X", 20, 5);
+	Text.putstring("|  ", 20, 6); Text.putstring(alertLine[0], 23, 6); Text.putstring("  |", 57, 6);
+	Text.putstring("|  ", 20, 7); Text.putstring(alertLine[1], 23, 7); Text.putstring("  |", 57, 7);
+	Text.putstring("|  ", 20, 8); Text.putstring(alertLine[2], 23, 8); Text.putstring("  |", 57, 8);
+	Text.putstring("|  ", 20, 9); Text.putstring(alertLine[3], 23, 9); Text.putstring("  |", 57, 9);
+	Text.putstring("|  ", 20, 10); Text.putstring(alertLine[4], 23, 10); Text.putstring("  |", 57, 10);
+	Text.putstring("|  ", 20, 11); Text.putstring(alertLine[5], 23, 11); Text.putstring("  |", 57, 11);
+	Text.putstring("|  ", 20, 12); Text.putstring(alertLine[6], 23, 12); Text.putstring("  |", 57, 12);
+	Text.putstring("|                                      |", 20, 13);
+	Text.putstring("*--------------------------------------*", 20, 14);
+	Text.setcolor(char(LIGHTRED << 4 | WHITE), 59, 5);
+
+	Text.setcolor(LIGHTGREEN, CYAN);
+	if((type&OK_BUTTON)&&!(type&CANCEL_BUTTON))
+		Text.putstring(" O    K ", 36, 13);
+	else if (!(type&OK_BUTTON) && (type&CANCEL_BUTTON))
+		Text.putstring(" CANCEL ", 36, 13);
+	else if ((type&OK_BUTTON) && (type&CANCEL_BUTTON)) {
+		Text.putstring(" O    K ", 28, 13);
+		Text.putstring(" CANCEL ", 44, 13);
+	}
+
+	Mouse.renew();
+	menu = NONE;
+	window = ALERT_MESSAGE;
+	alertReturn = type;
+}
+void frame::restore() {
+	static vecTwo leftTop[11] = { {0, 0}, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 26, 5 }, { 0, 0 }, { 20, 5 } };
+	Mouse.restore();
+
+	//恢复列表
+	if (menu != NONE) {
+		Text.puttext(8 * (menu - 1), 0, txt);
+		menu = NONE;
+	}
+
+	//恢复窗口
+	else {
+		Text.puttext(leftTop[window].x, leftTop[window].y, txt);
+		window = EMPTY_WINDOW;
+	}
+
 	Mouse.renew();
 	free(txt->content);
 }
@@ -978,6 +1278,8 @@ file::file() {
 	fileName = (char*)malloc(64);
 	fileFolder = (char*)malloc(256);
 	fileContent = (char*)malloc(64 * 1024);
+	fileLength = 0;
+	this->editorBegin = this->editorEnd = 0;
 }
 bool file::openFile(char *fileName) {
 	std::ifstream fin(fileName, std::ios::binary|std::ios::in);
@@ -991,29 +1293,24 @@ bool file::openFile(char *fileName) {
 		fin.seekg(0, std::ios::beg);
 		fin.read(fileContent, length);
 		fin.close();
+		strcpy(this->fileName, fileName);
+		_getcwd(this->fileFolder, 256);
 	}
 	else return false;
 	for (i = 0; i < length; i++) {
 		Editor.operate(fileContent[i], false);
 		if (Editor.cursorPos.y == Editor.height - 1)break;
 	}
-	editorEnd = putRow(i, Editor.height-1);
+	editorEnd = Editor.putRow(i, Editor.height-1);
 	editorBegin = 0;
 	Editor.cursorPos.x = Editor.cursorPos.y = 0;
 	return true;
 }
-int file::putRow(int pos, int line) {
-	vecTwo tmp = Editor.cursorPos;
-	Editor.cursorPos.y = line;
-	Editor.cursorPos.x = 0;
-	while ( fileContent[++pos] != '\r'&&Editor.cursorPos.x < Editor.width - 1) {
-		Editor.operate(fileContent[pos], false);
-		if (pos == fileLength)return pos;
-	}
-	if (Editor.cursorPos.x == Editor.width - 1) {
-		Editor.content.content[line*Editor.width + Editor.width - 1] &= 0xFF00;
-		Editor.content.content[line*Editor.width + Editor.width - 1] |= fileContent[pos];
-	}
-	Editor.cursorPos = tmp;
-	return pos;
+void file::closeFile() {
+	Editor.clear();
+	fileLength = 0;
+	this->editorBegin = this->editorEnd = 0;
+}
+char file::posContent(int pos) {
+	return fileContent[pos];
 }
