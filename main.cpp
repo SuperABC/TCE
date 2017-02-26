@@ -1,23 +1,26 @@
 #include "tce.h"
 
-LPWSTR widen(char *src);
+frame *Frame;
+mouse *Mouse;
+editor *Editor;
+file *File;
 
-text Text;
-frame Frame;
-mouse Mouse;
-editor Editor;
-file File;
-
-void sgSetup() {
-	//LoadKeyboardLayout(widen("0x0409"), KLF_ACTIVATE | KLF_SETFORPROCESS);
-	initWindow(640, 400, "TC Emulator");
+void sgSetup(){
+	initWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "TC Emulator", TEXT_MAP);
 	initMouse(SG_COORDINATE);
 	initKey();
 }
 void sgLoop() {
+	static int first = 1;
+	if (first) {
+		first = 0;
+		Frame = new frame();
+		Mouse = new mouse();
+		Editor = new editor();
+		File = new file();
+	}
 	hideMouse();
-	Frame.loop();
-	Text.update();
+	Frame->loop();
 }
 
 LPWSTR widen(char *src) {
