@@ -1,6 +1,6 @@
 #include "tce.h"
 
-extern frame Frame;
+extern frame *Frame;
 
 enum editor::LANGUAGE {
 		CL_C,
@@ -56,6 +56,6 @@ const char *frame::debugAlert = "compiler not found!\n"
 "  There isn't any compiler in this TCE.";
 
 void functions::closeTCE() {
-	if (Frame.alertReturn == NO_BUTTON || Frame.alertReturn == CANCEL_BUTTON)return;
-	if (Frame.alertReturn == OK_BUTTON)exit(0);
+	if (Frame->alertReturn == NO_BUTTON || Frame->alertReturn == CANCEL_BUTTON)return;
+	if (Frame->alertReturn == OK_BUTTON)exit(0);
 }

@@ -1,126 +1,20 @@
 #pragma once
-#include "screen.h"
+#include "sgl.h"
 #include "direct.h"
 
+#define SCREEN_WIDTH 108
+#define SCREEN_HEIGHT 32
+#define EDITOR_WIDTH 105
+#define EDITOR_HEIGHT 28
 #define MAX_KEYWORD_LEN 12
 #define LANGUAGE_NUM 1
 
 #define inRect(x, y, xx, yy, xxx, yyy) (((x)>=(xx)&&(x)<=(xxx))&&((y)>=(yy)&&(y)<=(yyy)))
 
+//窗口回调函数
 class functions {
 public:
 	static void closeTCE();
-};
-
-enum COLORS {
-	BLACK,       /* dark colors */
-	BLUE,
-	GREEN,
-	CYAN,
-	RED,
-	MAGENTA,
-	BROWN,
-	DARKGRAY,
-	LIGHTGRAY,    /* light colors */
-	LIGHTBLUE,
-	LIGHTGREEN,
-	LIGHTCYAN,
-	LIGHTRED,
-	LIGHTMAGENTA,
-	YELLOW,
-	WHITE
-};
-struct textMap {
-	int width, height;
-	short *content;
-};
-//文本模式
-class text {
-private:
-	unsigned short *content;
-	unsigned short *changed;
-	const int width = 80, height = 25;
-	char color;
-
-	//提取背景色
-	RGB bgc(short c) {
-		c >>= 12;
-		c &= 0x000F;
-		switch (c) {
-		case BLACK: return{ 0, 0, 0 };
-		case BLUE: return{ 0, 0, 127 };
-		case GREEN: return{ 0, 127, 0 };
-		case CYAN: return{ 0, 127, 127 };
-		case RED: return{ 127, 0, 0 };
-		case MAGENTA: return{ 127, 0, 127 };
-		case BROWN: return{ 127, 127, 0 };
-		case DARKGRAY: return{ 127, 127, 127 };
-		case LIGHTGRAY: return{ 191, 191, 191 };
-		case LIGHTBLUE: return{ 0, 0, 255 };
-		case LIGHTGREEN: return{ 0, 255, 0 };
-		case LIGHTCYAN: return{ 0, 255, 255 };
-		case LIGHTRED: return{ 255, 0, 0 };
-		case LIGHTMAGENTA: return{ 255, 0, 255 };
-		case YELLOW: return{ 255, 255, 0 };
-		case WHITE: return{ 255, 255, 255 };
-		}
-		return{ 0, 0, 0 };
-	}
-	//提取前景色
-	RGB fgc(short c) {
-		c >>= 8;
-		c &= 0x000F;
-		switch (c) {
-		case BLACK: return{ 0, 0, 0 };
-		case BLUE: return{ 0, 0, 127 };
-		case GREEN: return{ 0, 127, 0 };
-		case CYAN: return{ 0, 127, 127 };
-		case RED: return{ 127, 0, 0 };
-		case MAGENTA: return{ 127, 0, 127 };
-		case BROWN: return{ 127, 127, 0 };
-		case DARKGRAY: return{ 127, 127, 127 };
-		case LIGHTGRAY: return{ 191, 191, 191 };
-		case LIGHTBLUE: return{ 0, 0, 255 };
-		case LIGHTGREEN: return{ 0, 255, 0 };
-		case LIGHTCYAN: return{ 0, 255, 255 };
-		case LIGHTRED: return{ 255, 0, 0 };
-		case LIGHTMAGENTA: return{ 255, 0, 255 };
-		case YELLOW: return{ 255, 255, 0 };
-		case WHITE: return{ 255, 255, 255 };
-		}
-		return{ 0, 0, 0 };
-	}
-	//更新某点信息
-	void renew(short c, int x, int y) {
-		RGB b = bgc(c), f = fgc(c);
-		setColor(b.r, b.g, b.b);
-		putQuad(x * 8, y * 16, x * 8 + 7, y * 16 + 15, SOLID_FILL);
-		setColor(f.r, f.g, f.b);
-		putChar((char)c, x * 8, y * 16 - 2);
-	}
-public:
-	text();
-
-	//更新屏幕所有点
-	void update();
-	//设置内置颜色
-	void setcolor(int bgc, int fgc);
-	//设置某点颜色
-	void setcolor(char color, int x, int y);
-	//设置某点背景色
-	void setbgcolor(char color, int x, int y);
-	//设置某点前景色
-	void setfgcolor(char color, int x, int y);
-	//用内置颜色写字符
-	void putchar(char c, int x, int y);
-	//用内置颜色写字符串
-	void putstring(char *s, int x, int y);
-	//获取某点信息
-	short getpoint(int x, int y);
-	//复制矩形区域
-	void gettext(int left, int up, int right, int bottom, textMap *text);
-	//粘贴矩形区域
-	void puttext(int left, int up, const textMap *text);
 };
 
 //文件存取
@@ -145,8 +39,9 @@ public:
 class editor {
 private:
 	//当前屏幕区域内容
-	const textMap content = { 78, 22, (short*)malloc(78 * 22 * sizeof(short)) };
-	const int width = 78, height = 22;
+	textMap content = { EDITOR_WIDTH, EDITOR_HEIGHT,
+		(short*)malloc(EDITOR_WIDTH * EDITOR_HEIGHT * sizeof(short)) };
+	const int width = EDITOR_WIDTH, height = EDITOR_HEIGHT;
 	//光标坐标
 	vecTwo cursorPos;
 	//剪贴板
@@ -156,9 +51,9 @@ private:
 	//上下光标对齐
 	int endMax = 0;
 	//行尾位置
-	int endL[22] = { 0 };
+	int endL[EDITOR_HEIGHT] = { 0 };
 	//行首位置
-	int tabS[22] = { 0 };
+	int tabS[EDITOR_HEIGHT] = { 0 };
 	enum LANGUAGE;
 	//关键字集合
 	static char *keyWord[5][100];

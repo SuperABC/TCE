@@ -1,75 +1,18 @@
 #include "tce.h"
 
-extern text Text;
-extern frame Frame;
-extern mouse Mouse;
-extern editor Editor;
-extern file File;
-
-text::text() {
-	content = (unsigned short *)malloc(80 * 25 * sizeof(unsigned short));
-	changed = (unsigned short *)malloc(80 * 25 * sizeof(unsigned short));
-}
-void text::update() {
-	for (int i = 0; i < 80 * 25; i++) {
-		if (changed[i] != content[i]) {
-			content[i] = changed[i];
-			renew(content[i], i % 80, i / 80);
-		}
-	}
-}
-void text::setcolor(int bgc, int fgc) {
-	color = (bgc << 4)|fgc;
-}
-void text::setcolor(char color, int x, int y) {
-	int pos = y * 80 + x;
-	changed[pos] &= 0x00FF;
-	changed[pos] |= (color << 8);
-}
-void text::setbgcolor(char color, int x, int y) {
-	int pos = y * 80 + x;
-	changed[pos] &= 0x0FFF;
-	changed[pos] |= ((color&0x0F) << 12);
-}
-void text::setfgcolor(char color, int x, int y) {
-	int pos = y * 80 + x;
-	changed[pos] &= 0xF0FF;
-	changed[pos] |= ((color & 0x0F) << 8);
-}
-void text::putchar(char c, int x, int y) {
-	int pos = y * 80 + x;
-	changed[pos] = ((short)color << 8)|(short)c;
-}
-void text::putstring(char *s, int x, int y) {
-	for (int i = 0; s[i] != '\0'; i++) {
-		putchar(s[i], x++, y);
-	}
-}
-short text::getpoint(int x, int y) {
-	return changed[y * 80 + x];
-}
-void text::gettext(int left, int up, int right, int bottom, textMap *text) {
-	text->width = right - left + 1;
-	text->height = bottom - up + 1;
-	text->content = (short*)malloc(text->width * text->height * sizeof(short));
-	for (int i = 0; i < text->height; i++) {
-		memcpy(text->content + (i*text->width), changed + (up + i) * 80 + left, text->width * sizeof(short));
-	}
-}
-void text::puttext(int left, int up, const textMap *text) {
-	for (int i = 0; i < text->height; i++) {
-		memcpy(changed + (up + i) * 80 + left, text->content + (i*text->width), text->width * sizeof(short));
-	}
-}
+extern frame *Frame;
+extern mouse *Mouse;
+extern editor *Editor;
+extern file *File;
 
 editor::editor() {
 	cursorPos = { 0, 0 };
-	for (int i = 0; i < 22 * 78; i++) {
+	for (int i = 0; i < EDITOR_WIDTH * EDITOR_HEIGHT; i++) {
 		content.content[i] = ((BLUE << 12) | (YELLOW << 8) | 0);
 	}
 }
 void editor::show() {
-	Text.puttext(1, 2, &content);
+	putText(1, 2, &content);
 }
 void editor::match() {
 	char *cc = (char *)malloc(MAX_KEYWORD_LEN);
@@ -368,11 +311,11 @@ void editor::check() {
 void editor::cursor() {
 	static int t = 0;
 	t = (t + 1) % 160;
-	if (t / 100)Text.setbgcolor(WHITE, cursorPos.x+1, cursorPos.y+2);
-	else Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+	if (t / 100)setCharBgc(LIGHTGRAY, cursorPos.x+1, cursorPos.y+2);
+	else setCharBgc(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 }
 void editor::suspend() {
-	Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+	setCharBgc(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 }
 void editor::clear() {
 	for (int i = 0; i < width*height; i++) {
@@ -386,16 +329,16 @@ int editor::putRow(int pos, int line) {
 	for (int i = 0; i < width; i++) {
 		content.content[cursorPos.y*width + cursorPos.x] = (BLUE << 12 | YELLOW << 8);
 	}
-	while (File.fileContent[++pos] != '\r'&&cursorPos.x < width - 1) {
-		operate(File.fileContent[pos], false);
-		if (pos == File.fileLength)return pos;
+	while (File->fileContent[++pos] != '\r'&&cursorPos.x < width - 1) {
+		operate(File->fileContent[pos], false);
+		if (pos == File->fileLength)return pos;
 	}
 	for (int i = cursorPos.x; i < width; i++) {
 		content.content[line*width + i] &= 0xFF00;
 	}
-	if (cursorPos.x == width - 1 && File.fileContent[pos] != '\r') {
+	if (cursorPos.x == width - 1 && File->fileContent[pos] != '\r') {
 		content.content[line*width + width - 1] &= 0xFF00;
-		content.content[line*width + width - 1] |= File.fileContent[pos];
+		content.content[line*width + width - 1] |= File->fileContent[pos];
 	}
 	cursorPos = tmp;
 	return pos;
@@ -473,6 +416,9 @@ void editor::operate(int bioK, bool comp) {
 		}
 
 		show();
+	}
+	if (bioK < 0) {
+		operate(' ');
 	}
 	if (bioK == SG_TAB) {
 		operate(' ');
@@ -633,36 +579,36 @@ void editor::operate(int bioK, bool comp) {
 	if (bioK == SG_UP) {
 		complete = false;
 		if (cursorPos.y == 0) {
-			if (File.editorBegin == 0)return;
-			if (File.posContent(--File.editorBegin) == '\n')File.editorBegin -= 2;
-			if (File.editorBegin < 0) {
-				File.editorBegin = 0;
+			if (File->editorBegin == 0)return;
+			if (File->posContent(--File->editorBegin) == '\n')File->editorBegin -= 2;
+			if (File->editorBegin < 0) {
+				File->editorBegin = 0;
 				return;
 			}
-			if (File.posContent(File.editorBegin) == '\n')File.editorBegin++;
-			int lineEnd = File.editorBegin, tabNum = 0;
-			while (File.editorBegin && File.posContent(--File.editorBegin) != '\n') {
-				if (File.posContent(File.editorBegin) == '\t')tabNum++;
+			if (File->posContent(File->editorBegin) == '\n')File->editorBegin++;
+			int lineEnd = File->editorBegin, tabNum = 0;
+			while (File->editorBegin && File->posContent(--File->editorBegin) != '\n') {
+				if (File->posContent(File->editorBegin) == '\t')tabNum++;
 			}
-			int deltaChar = (lineEnd - File.editorBegin + tabNum*3 - 1) % width + 1;
+			int deltaChar = (lineEnd - File->editorBegin + tabNum*3 - 1) % width + 1;
 			tabNum = 0;
 			for (int i = 0; i < deltaChar; i++) {
-				if (File.posContent(lineEnd - i) == '\t') {
+				if (File->posContent(lineEnd - i) == '\t') {
 					tabNum++;
 					deltaChar -= 3;
 				}
 			}
-			File.editorBegin = (lineEnd - deltaChar) ? (lineEnd - deltaChar) + 1 : (lineEnd - deltaChar);
-			File.editorEnd -= endL[height - 1] - tabS[height - 1] + 1;
-			while (File.posContent(File.editorEnd) == '\t')File.editorEnd--;
-			if (File.posContent(File.editorEnd) == '\n')File.editorEnd--;
+			File->editorBegin = (lineEnd - deltaChar > 0) ? (lineEnd - deltaChar) + 1 : (lineEnd - deltaChar);
+			File->editorEnd -= endL[height - 1] - tabS[height - 1] + 1;
+			while (File->posContent(File->editorEnd) == '\t')File->editorEnd--;
+			if (File->posContent(File->editorEnd) == '\n')File->editorEnd--;
 			for (int i = height - 1; i > 0; i--) {
 				memcpy(content.content + i*width, content.content + (i - 1)*width, width * sizeof(short));
 			}
 			for (int i = 0; i < width; i++) {
 				content.content[i] &= 0xFF00;
 			}
-			putRow(File.editorBegin-1, 0);
+			putRow(File->editorBegin-1, 0);
 		}
 		else cursorPos.y--;
 		check();
@@ -673,17 +619,12 @@ void editor::operate(int bioK, bool comp) {
 	if (bioK == SG_DOWN) {
 		complete = false;
 		if (cursorPos.y == height - 1) {
-			if (File.editorEnd >= File.fileLength)return;
+			if (File->editorEnd >= File->fileLength)return;
 			for (int i = 0; i < width; i++) {
-				if (File.posContent(File.editorBegin) < 0) {
-					File.editorBegin += 2;
-					i--;
-					continue;
-				}
-				if (!char(content.content[i])) { File.editorBegin += 2; break; }
+				if (!char(content.content[i])) { File->editorBegin += 2; break; }
 				else {
-					if (File.posContent(File.editorBegin) == '\t')i += 3;
-					File.editorBegin++;
+					if (File->posContent(File->editorBegin) == '\t')i += 3;
+					File->editorBegin++;
 				}
 			}
 			for (int i = 1; i < height; i++) {
@@ -692,7 +633,7 @@ void editor::operate(int bioK, bool comp) {
 			for (int i = 0; i < width; i++) {
 				content.content[(height-1)*width + i] &= 0xFF00;
 			}
-			File.editorEnd = putRow(File.editorEnd, height - 1);
+			File->editorEnd = putRow(File->editorEnd, height - 1);
 		}
 		else cursorPos.y++;
 		check();
@@ -719,7 +660,7 @@ void editor::operate(int bioK, bool comp) {
 				cursorPos.y++;
 				cursorPos.x = 0;
 			}
-			else if(File.editorEnd<File.fileLength){
+			else if(File->editorEnd<File->fileLength){
 				operate(SG_DOWN);
 				operate(SG_UP);
 				operate(SG_RIGHT);
@@ -732,10 +673,10 @@ void editor::operate(int bioK, bool comp) {
 }
 void editor::operate(vecThree bioM) {
 	complete = false;
-	vecTwo tmp = Mouse.grid(bioM.x, bioM.y);
+	vecTwo tmp = Mouse->grid(bioM.x, bioM.y);
 	if (tmp.x<1 || tmp.x>width)return;
 	if (tmp.y<2 || tmp.y>height + 1)return;
-	Text.setbgcolor(BLUE, cursorPos.x + 1, cursorPos.y + 2);
+	setCharBgc(BLUE, cursorPos.x + 1, cursorPos.y + 2);
 	cursorPos.y = tmp.y - 2;
 	cursorPos.x = tmp.x - 1 < endL[cursorPos.y] ? tmp.x - 1 : endL[cursorPos.y];
 	endMax = cursorPos.x;
@@ -768,31 +709,40 @@ frame::frame() {
 	ctrling = shifting = alting = draging = 0;
 	menu = window = alertReturn = 0;
 	tmpVect = voidFunc;
-	Text.setcolor(LIGHTGRAY, BLACK);
-	Text.putstring("  File    Edit   Tools    Run     Help                                          ", 0, 0);
-	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 2, 0);
-	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 10, 0);
-	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 17, 0);
-	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 26, 0);
-	Text.setcolor((char)(LIGHTGRAY << 4 | RED), 34, 0);
-	Text.setcolor(BLUE, YELLOW);
-	for (int i = 80; i < 80 * 25; i++)Text.putchar(' ', i % 80, i / 80);
-	Text.setcolor(LIGHTBLUE, WHITE);
-	for (int i = 81; i < 159; i++)Text.putchar('=', i % 80, i / 80);
-	for (int i = 1921; i < 1999; i++)Text.putchar('=', i % 80, i / 80);
-	for (int i = 80; i < 2000; i+=80)Text.putchar('|', i % 80, i / 80);
-	for (int i = 159; i < 2000; i+=80)Text.putchar(' ', i % 80, i / 80);
-	Text.putchar('*', 0, 1);
-	Text.putchar('*', 0, 24);
+	setBfc(LIGHTGRAY, BLACK);
+	writeString("  File    Edit   Tools    Run     Help                                                                                          ", 0, 0);
+	setCharColor((char)(LIGHTGRAY << 4 | RED), 2, 0);
+	setCharColor((char)(LIGHTGRAY << 4 | RED), 10, 0);
+	setCharColor((char)(LIGHTGRAY << 4 | RED), 17, 0);
+	setCharColor((char)(LIGHTGRAY << 4 | RED), 26, 0);
+	setCharColor((char)(LIGHTGRAY << 4 | RED), 34, 0);
+	setBfc(BLUE, YELLOW);
+	for (int i = SCREEN_WIDTH; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++)
+		writeChar(' ', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	setBfc(LIGHTBLUE, WHITE);
+	for (int i = SCREEN_WIDTH; i < SCREEN_WIDTH*2; i++)
+		writeChar('=', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	for (int i = SCREEN_WIDTH * (SCREEN_HEIGHT - 1) - 1; i > SCREEN_WIDTH * (SCREEN_HEIGHT - 2) - 1; i--)
+		writeChar('=', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	for (int i = SCREEN_WIDTH; i < SCREEN_WIDTH * (SCREEN_HEIGHT - 2); i+= SCREEN_WIDTH)
+		writeChar('|', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	for (int i = SCREEN_WIDTH * 2 - 2; i < SCREEN_WIDTH * (SCREEN_HEIGHT - 2); i += SCREEN_WIDTH)
+		writeChar('|', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	for (int i = SCREEN_WIDTH * 2 - 1; i < SCREEN_WIDTH * (SCREEN_HEIGHT - 1); i+= SCREEN_WIDTH)
+		writeChar(' ', i % SCREEN_WIDTH, i / SCREEN_WIDTH);
+	writeChar('*', 0, 1);
+	writeChar('*', 0, SCREEN_HEIGHT - 2);
+	writeChar('*', SCREEN_WIDTH - 2, 1);
+	writeChar('*', SCREEN_WIDTH - 2, SCREEN_HEIGHT - 2);
 }
 void frame::loop() {
 	LoadKeyboardLayout(widen("0x0409"), KLF_ACTIVATE | KLF_SETFORPROCESS);
-	Mouse.update();
+	Mouse->update();
 
 	vecThree click = { -1, -1, -1 };
 	int key = 0;
 
-	if(!opening)Editor.cursor();
+	if(!opening)Editor->cursor();
 
 	if (biosMouse(1).m)click = biosMouse(0);
 	if (biosKey(1))key = biosKey(0);
@@ -833,10 +783,10 @@ void frame::loop() {
 		exit(0);
 		break;
 	}
-	if (key&&!opening)Editor.operate(key^0x8000);
+	if (key&&!opening)Editor->operate(key^0x8000);
 
 	if (click.x < 0 || click.y < 0)return;
-	vecTwo clickF = Mouse.grid(click.x, click.y);
+	vecTwo clickF = Mouse->grid(click.x, click.y);
 
 	//响应编辑时鼠标动态
 	if (!opening) {
@@ -845,8 +795,8 @@ void frame::loop() {
 		else if (inRect(clickF.x, clickF.y, 16, 0, 23, 0))list(TOOLS);
 		else if (inRect(clickF.x, clickF.y, 24, 0, 31, 0))list(RUN);
 		else if (inRect(clickF.x, clickF.y, 32, 0, 39, 0))list(HELP);
-		if (click.m == SG_LEFT_BUTTON)Editor.operate(click);
-		if ((click.m == SG_MIDDLE_BUTTON_UP) || (click.m == SG_MIDDLE_BUTTON_DOWN))Editor.stroll(click.m);
+		if (click.m == SG_LEFT_BUTTON)Editor->operate(click);
+		if ((click.m == SG_MIDDLE_BUTTON_UP) || (click.m == SG_MIDDLE_BUTTON_DOWN))Editor->stroll(click.m);
 	}
 	//响应列表时鼠标动态
 	else if (menu != NONE) {
@@ -906,7 +856,7 @@ void frame::loop() {
 				restore();
 				opening = false;
 				menu = NONE;
-				File.openFile("tce.h");
+				File->openFile("tce.h");
 			}
 			else if (inRect(clickF.x, clickF.y, 0, 4, 19, 4)) {
 				alert(saveCurrentAlert, OK_BUTTON);
@@ -918,8 +868,8 @@ void frame::loop() {
 				restore();
 				opening = false;
 				menu = NONE;
-				File.closeFile();
-				Editor.show();
+				File->closeFile();
+				Editor->show();
 			}
 			else if (inRect(clickF.x, clickF.y, 0, 8, 19, 8)) {
 				alert(closeTCEAlert, OK_BUTTON | CANCEL_BUTTON);
@@ -986,7 +936,7 @@ void frame::loop() {
 	//响应窗口时鼠标动态
 	else {
 		//关闭版本窗口
-		if (window == HELP_VERSION&&clickF.x == 53 && clickF.y == 5) {
+		if (window == HELP_VERSION&&clickF.x == SCREEN_WIDTH / 2 + 13 && clickF.y == 5) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
@@ -994,18 +944,19 @@ void frame::loop() {
 		}
 
 		//关闭提示窗口
-		if (window == ALERT_MESSAGE&&clickF.x == 59 && clickF.y == 5) {
+		if (window == ALERT_MESSAGE&&clickF.x == SCREEN_WIDTH / 2 + 19 && clickF.y == 5) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
 			alertReturn = NO_BUTTON;
 			opening = false;
 			tmpVect();
+			tmpVect = voidFunc;
 		}
 		//单确定窗口点击确定
 		if (window == ALERT_MESSAGE
 			&&((alertReturn & OK_BUTTON) && !(alertReturn & CANCEL_BUTTON))
-			&& inRect(clickF.x, clickF.y, 36, 13, 43, 13)) {
+			&& inRect(clickF.x, clickF.y, SCREEN_WIDTH / 2 - 4, 13, SCREEN_WIDTH / 2 + 3, 13)) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
@@ -1017,7 +968,7 @@ void frame::loop() {
 		//单取消窗口点击取消
 		if (window == ALERT_MESSAGE
 			&& (!(alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
-			&& inRect(clickF.x, clickF.y, 36, 13, 43, 13)) {
+			&& inRect(clickF.x, clickF.y, SCREEN_WIDTH / 2 - 4, 13, SCREEN_WIDTH / 2 + 3, 13)) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
@@ -1029,7 +980,7 @@ void frame::loop() {
 		//确定取消窗口点击确定
 		if (window == ALERT_MESSAGE
 			&& ((alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
-			&& inRect(clickF.x, clickF.y, 28, 13, 35, 13)) {
+			&& inRect(clickF.x, clickF.y, SCREEN_WIDTH / 2 - 12, 13, SCREEN_WIDTH / 2 - 5, 13)) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
@@ -1041,7 +992,7 @@ void frame::loop() {
 		//确定取消窗口点击取消
 		if (window == ALERT_MESSAGE
 			&& ((alertReturn & OK_BUTTON) && (alertReturn & CANCEL_BUTTON))
-			&& inRect(clickF.x, clickF.y, 44, 13, 51, 13)) {
+			&& inRect(clickF.x, clickF.y, SCREEN_WIDTH / 2 + 4, 13, SCREEN_WIDTH / 2 + 11, 13)) {
 			restore();
 			menu = NONE;
 			window = EMPTY_WINDOW;
@@ -1058,113 +1009,94 @@ void frame::list(int menu) {
 	opening = true;
 	this->menu = menu;
 
-	Editor.suspend();
-	Mouse.restore();
+	Editor->suspend();
+	Mouse->restore();
 
-	Text.gettext(8 * (menu - 1), 0, 8 * menu + 15, menuHeight[menu - 1] + 3, txt);
-	for (int i = 0; i < 8; i++)Text.setbgcolor(LIGHTGREEN, (menu - 1) * 8 + i, 0);
-	Text.setcolor(LIGHTGRAY, BLACK);
+	getText(8 * (menu - 1), 0, 8 * menu + 15, menuHeight[menu - 1] + 3, txt);
+	for (int i = 0; i < 8; i++)setCharBgc(LIGHTGREEN, (menu - 1) * 8 + i, 0);
+	setBfc(LIGHTGRAY, BLACK);
 	switch (menu) {
 	case FILES:
-		Text.putstring("--------------------", 8 * (menu - 1), 1);
-		Text.putstring("* New file      F1 *", 8 * (menu - 1), 2);
-		Text.putstring("* Open file     F2 *", 8 * (menu - 1), 3);
-		Text.putstring("* Save current  F3 *", 8 * (menu - 1), 4);
-		Text.putstring("* Save as          *", 8 * (menu - 1), 5);
-		Text.putstring("* ---------------- *", 8 * (menu - 1), 6);
-		Text.putstring("* Close file       *", 8 * (menu - 1), 7);
-		Text.putstring("* Close TCE     F4 *", 8 * (menu - 1), 8);
-		Text.putstring("--------------------", 8 * (menu - 1), 9);
-		for(int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 2);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 3);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 4);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 5);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 7);
+		writeString("--------------------", 8 * (menu - 1), 1);
+		writeString("* New file      F1 *", 8 * (menu - 1), 2);
+		writeString("* Open file     F2 *", 8 * (menu - 1), 3);
+		writeString("* Save current  F3 *", 8 * (menu - 1), 4);
+		writeString("* Save as          *", 8 * (menu - 1), 5);
+		writeString("* ---------------- *", 8 * (menu - 1), 6);
+		writeString("* Close file       *", 8 * (menu - 1), 7);
+		writeString("* Close TCE     F4 *", 8 * (menu - 1), 8);
+		writeString("--------------------", 8 * (menu - 1), 9);
 		break;
 	case EDIT:
-		Text.putstring("--------------------", 8 * (menu - 1), 1);
-		Text.putstring("* Undo      Ctrl+Z *", 8 * (menu - 1), 2);
-		Text.putstring("* Redo      Ctrl+Y *", 8 * (menu - 1), 3);
-		Text.putstring("* ---------------- *", 8 * (menu - 1), 4);
-		Text.putstring("* Cut       Ctrl+X *", 8 * (menu - 1), 5);
-		Text.putstring("* Copy      Ctrl+C *", 8 * (menu - 1), 6);
-		Text.putstring("* Paste     Ctrl+V *", 8 * (menu - 1), 7);
-		Text.putstring("* Delete           *", 8 * (menu - 1), 8);
-		Text.putstring("* Goto      Ctrl+G *", 8 * (menu - 1), 9);
-		Text.putstring("* ---------------- *", 8 * (menu - 1), 10);
-		Text.putstring("* Clipboard        *", 8 * (menu - 1), 11);
-		Text.putstring("--------------------", 8 * (menu - 1), 12);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 2);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 3);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 5);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 6);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 7);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 8);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 9);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 11);
+		writeString("--------------------", 8 * (menu - 1), 1);
+		writeString("* Undo      Ctrl+Z *", 8 * (menu - 1), 2);
+		writeString("* Redo      Ctrl+Y *", 8 * (menu - 1), 3);
+		writeString("* ---------------- *", 8 * (menu - 1), 4);
+		writeString("* Cut       Ctrl+X *", 8 * (menu - 1), 5);
+		writeString("* Copy      Ctrl+C *", 8 * (menu - 1), 6);
+		writeString("* Paste     Ctrl+V *", 8 * (menu - 1), 7);
+		writeString("* Delete           *", 8 * (menu - 1), 8);
+		writeString("* Goto      Ctrl+G *", 8 * (menu - 1), 9);
+		writeString("* ---------------- *", 8 * (menu - 1), 10);
+		writeString("* Clipboard        *", 8 * (menu - 1), 11);
+		writeString("--------------------", 8 * (menu - 1), 12);
 		break;
 	case TOOLS:
-		Text.putstring("--------------------", 8 * (menu - 1), 1);
-		Text.putstring("* Setting       F6 *", 8 * (menu - 1), 2);
-		Text.putstring("* ---------------- *", 8 * (menu - 1), 3);
-		Text.putstring("* Search           *", 8 * (menu - 1), 4);
-		Text.putstring("* Replace          *", 8 * (menu - 1), 5);
-		Text.putstring("--------------------", 8 * (menu - 1), 6);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 2);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 4);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 5);
+		writeString("--------------------", 8 * (menu - 1), 1);
+		writeString("* Setting       F6 *", 8 * (menu - 1), 2);
+		writeString("* ---------------- *", 8 * (menu - 1), 3);
+		writeString("* Search           *", 8 * (menu - 1), 4);
+		writeString("* Replace          *", 8 * (menu - 1), 5);
+		writeString("--------------------", 8 * (menu - 1), 6);
 		break;
 	case RUN:
-		Text.putstring("--------------------", 8 * (menu - 1), 1);
-		Text.putstring("* Compile       F5 *", 8 * (menu - 1), 2);
-		Text.putstring("* Run          F10 *", 8 * (menu - 1), 3);
-		Text.putstring("* ---------------- *", 8 * (menu - 1), 4);
-		Text.putstring("* Debug         F9 *", 8 * (menu - 1), 5);
-		Text.putstring("--------------------", 8 * (menu - 1), 6);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 2);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 3);
-		for (int i = 0; i < 16; i++)Text.setfgcolor(DARKGRAY, 8 * (menu - 1) + i + 2, 5);
+		writeString("--------------------", 8 * (menu - 1), 1);
+		writeString("* Compile       F5 *", 8 * (menu - 1), 2);
+		writeString("* Run          F10 *", 8 * (menu - 1), 3);
+		writeString("* ---------------- *", 8 * (menu - 1), 4);
+		writeString("* Debug         F9 *", 8 * (menu - 1), 5);
+		writeString("--------------------", 8 * (menu - 1), 6);
 		break;
 	case HELP:
-		Text.putstring("--------------------", 8 * (menu - 1), 1);
-		Text.putstring("* Version          *", 8 * (menu - 1), 2);
-		Text.putstring("* Help             *", 8 * (menu - 1), 3);
-		Text.putstring("--------------------", 8 * (menu - 1), 4);
+		writeString("--------------------", 8 * (menu - 1), 1);
+		writeString("* Version          *", 8 * (menu - 1), 2);
+		writeString("* Help             *", 8 * (menu - 1), 3);
+		writeString("--------------------", 8 * (menu - 1), 4);
 		break;
 	}
 
-	Mouse.renew();
+	Mouse->renew();
 }
 void frame::open(int window) {
 		restore();
-		Mouse.restore();
+		Mouse->restore();
 
 		switch (window) {
 		case HELP_VERSION:
-			Text.gettext(26, 5, 53, 14, txt);
-			Text.setcolor(LIGHTGRAY, BLACK);
-			Text.putstring("*--------------------------X", 26, 5);
-			Text.putstring("|  TC Emulater v0.0        |", 26, 6);
-			Text.putstring("|                          |", 26, 7);
-			Text.putstring("|  This is the first ver-  |", 26, 8);
-			Text.putstring("|  sion of TCE. Any sugg-  |", 26, 9);
-			Text.putstring("|  estions are welcomed.   |", 26, 10);
-			Text.putstring("|                          |", 26, 11);
-			Text.putstring("|                          |", 26, 12);
-			Text.putstring("|                          |", 26, 13);
-			Text.putstring("*--------------------------*", 26, 14);
-			Text.setcolor(char(LIGHTRED << 4 | WHITE), 53, 5);
+			getText(SCREEN_WIDTH / 2 - 14, 5, SCREEN_WIDTH / 2 + 13, 14, txt);
+			setBfc(LIGHTGRAY, BLACK);
+			writeString("*--------------------------X", SCREEN_WIDTH / 2 - 14, 5);
+			writeString("|  TC Emulater v0.0        |", SCREEN_WIDTH / 2 - 14, 6);
+			writeString("|                          |", SCREEN_WIDTH / 2 - 14, 7);
+			writeString("|  This is the first ver-  |", SCREEN_WIDTH / 2 - 14, 8);
+			writeString("|  sion of TCE. Any sugg-  |", SCREEN_WIDTH / 2 - 14, 9);
+			writeString("|  estions are welcomed.   |", SCREEN_WIDTH / 2 - 14, 10);
+			writeString("|                          |", SCREEN_WIDTH / 2 - 14, 11);
+			writeString("|                          |", SCREEN_WIDTH / 2 - 14, 12);
+			writeString("|                          |", SCREEN_WIDTH / 2 - 14, 13);
+			writeString("*--------------------------*", SCREEN_WIDTH / 2 - 14, 14);
+			setCharColor(char(LIGHTRED << 4 | WHITE), SCREEN_WIDTH / 2 + 13, 5);
 			break;
 		}
 
-		Mouse.renew();
+		Mouse->renew();
 		menu = NONE;
 		this->window = window;
 }
 void frame::alert(const char *content, int type) {
 	const int width = 34, height = 7;
 	restore();
-	Mouse.restore();
+	Mouse->restore();
 
 	char *alertLine[height];
 	for (int i = 0; i < height; i++) {
@@ -1186,52 +1118,52 @@ void frame::alert(const char *content, int type) {
 		alertLine[alertPos.y][alertPos.x] = content[i];
 	}
 
-	Text.gettext(20, 5, 59, 14, txt);
-	Text.setcolor(LIGHTGRAY, BLACK);
-	Text.putstring("*--------------------------------------X", 20, 5);
-	Text.putstring("|  ", 20, 6); Text.putstring(alertLine[0], 23, 6); Text.putstring("  |", 57, 6);
-	Text.putstring("|  ", 20, 7); Text.putstring(alertLine[1], 23, 7); Text.putstring("  |", 57, 7);
-	Text.putstring("|  ", 20, 8); Text.putstring(alertLine[2], 23, 8); Text.putstring("  |", 57, 8);
-	Text.putstring("|  ", 20, 9); Text.putstring(alertLine[3], 23, 9); Text.putstring("  |", 57, 9);
-	Text.putstring("|  ", 20, 10); Text.putstring(alertLine[4], 23, 10); Text.putstring("  |", 57, 10);
-	Text.putstring("|  ", 20, 11); Text.putstring(alertLine[5], 23, 11); Text.putstring("  |", 57, 11);
-	Text.putstring("|  ", 20, 12); Text.putstring(alertLine[6], 23, 12); Text.putstring("  |", 57, 12);
-	Text.putstring("|                                      |", 20, 13);
-	Text.putstring("*--------------------------------------*", 20, 14);
-	Text.setcolor(char(LIGHTRED << 4 | WHITE), 59, 5);
+	getText(SCREEN_WIDTH / 2 - 20, 5, SCREEN_WIDTH / 2 + 19, 14, txt);
+	setBfc(LIGHTGRAY, BLACK);
+	writeString("*--------------------------------------X", SCREEN_WIDTH / 2 - 20, 5);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 6); writeString(alertLine[0], SCREEN_WIDTH / 2 - 17, 6); writeString("  |", SCREEN_WIDTH / 2 + 17, 6);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 7); writeString(alertLine[1], SCREEN_WIDTH / 2 - 17, 7); writeString("  |", SCREEN_WIDTH / 2 + 17, 7);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 8); writeString(alertLine[2], SCREEN_WIDTH / 2 - 17, 8); writeString("  |", SCREEN_WIDTH / 2 + 17, 8);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 9); writeString(alertLine[3], SCREEN_WIDTH / 2 - 17, 9); writeString("  |", SCREEN_WIDTH / 2 + 17, 9);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 10); writeString(alertLine[4], SCREEN_WIDTH / 2 - 17, 10); writeString("  |", SCREEN_WIDTH / 2 + 17, 10);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 11); writeString(alertLine[5], SCREEN_WIDTH / 2 - 17, 11); writeString("  |", SCREEN_WIDTH / 2 + 17, 11);
+	writeString("|  ", SCREEN_WIDTH / 2 - 20, 12); writeString(alertLine[6], SCREEN_WIDTH / 2 - 17, 12); writeString("  |", SCREEN_WIDTH / 2 + 17, 12);
+	writeString("|                                      |", SCREEN_WIDTH / 2 - 20, 13);
+	writeString("*--------------------------------------*", SCREEN_WIDTH / 2 - 20, 14);
+	setCharColor(char(LIGHTRED << 4 | WHITE), SCREEN_WIDTH / 2 + 19, 5);
 
-	Text.setcolor(LIGHTGREEN, CYAN);
+	setBfc(LIGHTGREEN, CYAN);
 	if((type&OK_BUTTON)&&!(type&CANCEL_BUTTON))
-		Text.putstring(" O    K ", 36, 13);
+		writeString(" O    K ", SCREEN_WIDTH / 2 - 4, 13);
 	else if (!(type&OK_BUTTON) && (type&CANCEL_BUTTON))
-		Text.putstring(" CANCEL ", 36, 13);
+		writeString(" CANCEL ", SCREEN_WIDTH / 2 - 4, 13);
 	else if ((type&OK_BUTTON) && (type&CANCEL_BUTTON)) {
-		Text.putstring(" O    K ", 28, 13);
-		Text.putstring(" CANCEL ", 44, 13);
+		writeString(" O    K ", SCREEN_WIDTH / 2 - 12, 13);
+		writeString(" CANCEL ", SCREEN_WIDTH / 2 + 4, 13);
 	}
 
-	Mouse.renew();
+	Mouse->renew();
 	menu = NONE;
 	window = ALERT_MESSAGE;
 	alertReturn = type;
 }
 void frame::restore() {
-	static vecTwo leftTop[11] = { {0, 0}, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 26, 5 }, { 0, 0 }, { 20, 5 } };
-	Mouse.restore();
+	static vecTwo leftTop[11] = { {0, 0}, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { 0, 0 }, { SCREEN_WIDTH / 2 - 14, 5 }, { 0, 0 }, { SCREEN_WIDTH / 2 - 20, 5 } };
+	Mouse->restore();
 
 	//恢复列表
 	if (menu != NONE) {
-		Text.puttext(8 * (menu - 1), 0, txt);
+		putText(8 * (menu - 1), 0, txt);
 		menu = NONE;
 	}
 
 	//恢复窗口
 	else {
-		Text.puttext(leftTop[window].x, leftTop[window].y, txt);
+		putText(leftTop[window].x, leftTop[window].y, txt);
 		window = EMPTY_WINDOW;
 	}
 
-	Mouse.renew();
+	Mouse->renew();
 	free(txt->content);
 }
 
@@ -1255,23 +1187,23 @@ void mouse::update() {
 		y = newPos.y;
 		if (x < 0 || x >= 640 || y < 0 || y >= 400)return;
 		pressed = 0;
-		oldc = (Text.getpoint(grid().x, grid().y) >> 8);
-		Text.setcolor(oldc ^ 0x88, grid().x, grid().y);
+		oldc = getShort(grid().x, grid().y) >> 8;
+		setCharColor(oldc ^ 0x88, grid().x, grid().y);
 		first = 0;
 	}
 	if (grid(newPos.x, newPos.y) == grid())return;
-	Text.setcolor(oldc, grid().x, grid().y);
-	oldc = Text.getpoint(grid(newPos.x, newPos.y).x, grid(newPos.x, newPos.y).y) >> 8;
-	Text.setcolor(oldc ^ 0x88, grid(newPos.x, newPos.y).x, grid(newPos.x, newPos.y).y);
+	setCharColor(oldc, grid().x, grid().y);
+	oldc = getShort(grid(newPos.x, newPos.y).x, grid(newPos.x, newPos.y).y) >> 8;
+	setCharColor(oldc ^ 0x88, grid(newPos.x, newPos.y).x, grid(newPos.x, newPos.y).y);
 	x = newPos.x;
 	y = newPos.y;
 }
 void mouse::restore() {
-	Text.setcolor(oldc, grid().x, grid().y);
+	setCharColor(oldc, grid().x, grid().y);
 }
 void mouse::renew() {
-	oldc = Text.getpoint(grid().x, grid().y) >> 8;
-	Text.setcolor(oldc ^ 0x88, grid().x, grid().y);
+	oldc = getShort(grid().x, grid().y) >> 8;
+	setCharColor(oldc ^ 0x88, grid().x, grid().y);
 }
 
 file::file() {
@@ -1286,7 +1218,7 @@ bool file::openFile(char *fileName) {
 	int length, i;
 	vecTwo tmp = { 0, 0 };
 	if (fin) {
-		Editor.clear();
+		Editor->clear();
 		fin.seekg(0, std::ios::end);
 		length = (int)fin.tellg();
 		fileLength = length;
@@ -1298,16 +1230,16 @@ bool file::openFile(char *fileName) {
 	}
 	else return false;
 	for (i = 0; i < length; i++) {
-		Editor.operate(fileContent[i], false);
-		if (Editor.cursorPos.y == Editor.height - 1)break;
+		Editor->operate(fileContent[i], false);
+		if (Editor->cursorPos.y == Editor->height - 1)break;
 	}
-	editorEnd = Editor.putRow(i, Editor.height-1);
+	editorEnd = Editor->putRow(i, Editor->height-1);
 	editorBegin = 0;
-	Editor.cursorPos.x = Editor.cursorPos.y = 0;
+	Editor->cursorPos.x = Editor->cursorPos.y = 0;
 	return true;
 }
 void file::closeFile() {
-	Editor.clear();
+	Editor->clear();
 	fileLength = 0;
 	this->editorBegin = this->editorEnd = 0;
 }
