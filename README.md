@@ -1,2 +1,2 @@
 # TCE
-TC Emulator particularly for DE.
+TC Emulator particularly for DE. An instance of SGL text mode.
